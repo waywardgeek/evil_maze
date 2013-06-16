@@ -1,0 +1,11 @@
+Here's an possible algorithm for solving the one-way door maze problem.  Start off in the
+start room.  As we go through doors, mark rooms as in the path from start.  If we loop
+back on path, we create loop 1 for virtual room 1, and continue exploring.  If we reach a
+room in virtual room 1, we create a new virtual room 2, and when we're traversing the
+virtual room 2 loop, and see virtual 1 rooms, we know to traverse the 1 rooms and then
+continue on the 2 rooms if we want to visit all rooms from virtual room 2 and 1.  This
+continues until we collapse the entire maze into a virtual room leading to the finish.
+
+The algorithm for traversing all rooms in a virtual room N is to follow N virtual
+connector doors until we see a room with a door in a virtual loop smaller than N, in which
+case we traverse it and if we come back, we continue following virtual loop N doors.

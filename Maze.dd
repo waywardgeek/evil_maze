@@ -1,0 +1,19 @@
+module Maze ma
+
+class Maze
+
+class Room
+    bool inPath
+    bool start
+    bool finish
+
+class Door
+    uint64 count
+    bool banned
+
+relationship Maze Room doubly_linked mandatory
+relationship Maze Room:Start child_only
+relationship Maze Room:finish child_only
+relationship Room:From Door:Out doubly_linked mandatory
+relationship Room:To Door:In doubly_linked mandatory
+relationship Room Door:NextPath
