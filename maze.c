@@ -32,7 +32,7 @@ maMaze buildMaze(int numRooms, int averageDoors, int seed)
 {
     maMaze maze = maMazeAlloc();
     int i;
-    maRoom room[numRooms];
+    maRoom *rooms = utNewA(maRoom, numRooms);
     maRoom start, finish;
     maRoom from, to;
     int numDoors = (numRooms-1)*averageDoors;
@@ -40,65 +40,66 @@ maMaze buildMaze(int numRooms, int averageDoors, int seed)
     // First create a linear maze from start to finish
     start = maRoomCreate(maze);
     maRoomSetStart(start, true);
-    room[0] = start;
+    rooms[0] = start;
     for(i = 1; i < numRooms; i++) {
-        room[i] = maRoomCreate(maze);
-        maDoorCreate(room[i-1], room[i]);
+        rooms[i] = maRoomCreate(maze);
+        maDoorCreate(rooms[i-1], rooms[i]);
     }
-    finish = room[numRooms - 1];
+    finish = rooms[numRooms - 1];
     maRoomSetFinish(finish, true);
     numDoors -= numRooms - 1;
     // Now add remaining doors randomly, but not from finish.
     while(numDoors != 0) {
-        from = room[rand() % (numRooms - 1)];
-        to = room[rand() % numRooms];
+        from = rooms[rand() % (numRooms - 1)];
+        to = rooms[rand() % numRooms];
         maDoorCreate(from, to);
         numDoors--;
     }
     maMazeSetStartRoom(maze, start);
     maMazeSetFinishRoom(maze, finish);
+    utFree(rooms);
     return maze;
 }
 
-// Find a non banned outgoing door.
-static maDoor findNonBannedDoor(maRoom room)
+// Collapse all the rooms in the loop into this one, by moving their doors here and
+// deleting them.
+static void collapseLoop(
+    maRoom destRoom)
 {
+    maRoom room = maDoorGetToRoom(maRoomGetFirstOutDoor(destRoom));
+    maRoom nextRoom;
     maDoor door;
 
-    maForeachRoomOutDoor(room, door) {
-        if(!maDoorBanned(door)) {
-            return door;
-        }
-    } maEndRoomOutDoor;
-    return maDoorNull;
+    printf("Collapsing loop into room %u\n", maRoom2Index(destRoom));
+    while(room != destRoom) {
+        nextRoom = maDoorGetToRoom(maRoomGetFirstOutDoor(room));
+        utDo {
+            door = maRoomGetFirstOutDoor(room);
+        } utWhile(door != maDoorNull) {
+            if(maDoorGetToRoom(door) == destRoom) {
+                maDoorDestroy(door);
+            } else {
+                maRoomRemoveOutDoor(room, door);
+                maRoomAppendOutDoor(destRoom, door);
+            }
+        } utRepeat;
+        utDo {
+            door = maRoomGetFirstInDoor(room);
+        } utWhile(door != maDoorNull) {
+            if(maDoorGetFromRoom(door) == destRoom) {
+                maDoorDestroy(door);
+            } else {
+                maRoomRemoveInDoor(room, door);
+                maRoomAppendInDoor(destRoom, door);
+            }
+        } utRepeat;
+        printf("Destroying room %u\n", maRoom2Index(room));
+        maRoomDestroy(room);
+        room = nextRoom;
+    }
 }
 
-// Backup to the previous room by following path pointers.
-static maRoom backup(
-    maRoom targetRoom)
-{
-    maRoom room = targetRoom;
-    maDoor door;
-
-    do {
-        door = maRoomGetNextPathDoor(room);
-        room = maDoorGetToRoom(door);
-    } while(room != targetRoom);
-    maDoorSetBanned(door, true);
-    room = maDoorGetFromRoom(door);
-    printf("Banned door %u in room %u\n", maDoor2Index(door),
-        maRoom2Index(room));
-    return room;
-}
-
-// Solve the maze problem.  We keep a running count of the number of doors we've been
-// through, and when exploring we write that number on each door we go through.  If we
-// come to a room we've been before, we back up by following highest numbers until we see
-// the door just before our current count.  We mark that door banned.  The idea is that a
-// banned door need not be part of a valid path from start to finish.  If we are in a room
-// now with only banned doors, back up again and mark that door banned.  When we back up
-// into a room that has a non-banned door, go back to explore mode, but only go through
-// non-banned doors.  In general, marking doors as banned breaks loops.
+// Solve the maze problem.
 void solveMaze(maMaze maze)
 {
     maRoom currentRoom = maMazeGetStartRoom(maze);
@@ -106,26 +107,21 @@ void solveMaze(maMaze maze)
     maRoom finish = maMazeGetFinishRoom(maze);
     maDoor door;
 
-    maRoomSetInPath(currentRoom, true);
     while(currentRoom != finish) {
-        // We are in a room at the tip of the path... find a door
-        door = findNonBannedDoor(currentRoom);
-        if(door == maDoorNull) {
-            // All exits are banned.  Back up and ban the door we used to get here.
-            maRoomSetInPath(currentRoom, false);
-            currentRoom = backup(currentRoom);
+        maRoomSetInPath(currentRoom, true);
+        // We are in a room at the tip of the path... find an unexplored door
+        door = maRoomGetFirstOutDoor(currentRoom);
+        utAssert(door != maDoorNull);
+        nextRoom = maDoorGetToRoom(door);
+        if(nextRoom == currentRoom) {
+            // Destroy self-looping door
+            maDoorDestroy(door);
         } else {
-            // Explore through the non-banned door.
-            maRoomSetNextPathDoor(currentRoom, door);
-            nextRoom = maDoorGetToRoom(door);
             printf("Moved through door %u from room %u to %u\n",
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
             currentRoom = nextRoom;
             if(maRoomInPath(currentRoom)) {
-                // We've looped back on our exploration path.  Mark the door we took banned
-                currentRoom = backup(currentRoom);
-            } else {
-                maRoomSetInPath(currentRoom, true);
+                collapseLoop(currentRoom);
             }
         }
     }
