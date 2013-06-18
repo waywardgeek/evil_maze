@@ -5,12 +5,12 @@ class Maze
 class Room
     bool start
     bool finish
+    uint64 minValue
 
 class Door
 
 class Label
     uint64 value
-    uint64 skipToValue
 
 relationship Maze Room doubly_linked mandatory
 relationship Maze Room:Start child_only
