@@ -27,6 +27,18 @@ maDoor maDoorCreate(maRoom from, maRoom to)
     return door;
 }
 
+// Create a new label on a door.
+maLabel maLabelCreate(
+    maDoor door,
+    uint64 value)
+{
+    maLabel label = maLabelAlloc();
+
+    maLabelSetValue(label, value);
+    maDoorAppendLabel(door, label);
+    return label;
+}
+
 // Build a random maze.
 maMaze buildMaze(int numRooms, int averageDoors, int seed)
 {
@@ -51,8 +63,12 @@ maMaze buildMaze(int numRooms, int averageDoors, int seed)
     // Now add remaining doors randomly, but not from finish.
     while(numDoors != 0) {
         from = rooms[rand() % (numRooms - 1)];
-        to = rooms[rand() % numRooms];
-        maDoorCreate(from, to);
+        to = rooms[rand() % (numRooms - 1)];
+        if(maRoom2Index(from) < maRoom2Index(to)) {
+            maDoorCreate(to, from);
+        } else {
+            maDoorCreate(from, to);
+        }
         numDoors--;
     }
     maMazeSetStartRoom(maze, start);
@@ -61,42 +77,91 @@ maMaze buildMaze(int numRooms, int averageDoors, int seed)
     return maze;
 }
 
-// Collapse all the rooms in the loop into this one, by moving their doors here and
-// deleting them.
-static void collapseLoop(
-    maRoom destRoom)
+// Find an unexplored door if one exists.
+static maDoor findUnexploredDoor(
+    maRoom room)
 {
-    maRoom room = maDoorGetToRoom(maRoomGetFirstOutDoor(destRoom));
-    maRoom nextRoom;
     maDoor door;
 
-    printf("Collapsing loop into room %u\n", maRoom2Index(destRoom));
-    while(room != destRoom) {
-        nextRoom = maDoorGetToRoom(maRoomGetFirstOutDoor(room));
-        utDo {
-            door = maRoomGetFirstOutDoor(room);
-        } utWhile(door != maDoorNull) {
-            if(maDoorGetToRoom(door) == destRoom) {
-                maDoorDestroy(door);
-            } else {
-                maRoomRemoveOutDoor(room, door);
-                maRoomAppendOutDoor(destRoom, door);
+    maForeachRoomOutDoor(room, door) {
+        if(maDoorGetFirstLabel(door) == maLabelNull) {
+            return door;
+        }
+    } maEndRoomOutDoor;
+    return maDoorNull;
+}
+
+// Find the label in the room with the value.
+static maLabel findLabel(
+    maRoom room,
+    uint64 value)
+{
+    maDoor door;
+    maLabel label;
+
+    maForeachRoomOutDoor(room, door) {
+        maForeachDoorLabel(door, label) {
+            if(maLabelGetValue(label) == value) {
+                return label;
             }
-        } utRepeat;
-        utDo {
-            door = maRoomGetFirstInDoor(room);
-        } utWhile(door != maDoorNull) {
-            if(maDoorGetFromRoom(door) == destRoom) {
-                maDoorDestroy(door);
-            } else {
-                maRoomRemoveInDoor(room, door);
-                maRoomAppendInDoor(destRoom, door);
-            }
-        } utRepeat;
-        printf("Destroying room %u\n", maRoom2Index(room));
-        maRoomDestroy(room);
-        room = nextRoom;
+        } maEndDoorLabel;
+    } maEndRoomOutDoor;
+    return maLabelNull;
+}
+
+// Find the label with the smallest value.
+static maLabel findSmallestLabel(
+    maRoom room)
+{
+    maDoor door;
+    maLabel label, smallestLabel = maLabelNull;
+    uint64 smallestValue = UINT64_MAX;
+
+    maForeachRoomOutDoor(room, door) {
+        label = maDoorGetFirstLabel(door); // Smallest label on this door
+        if(label != maLabelNull && maLabelGetValue(label) < smallestValue) {
+            smallestValue = maLabelGetValue(label);
+            smallestLabel = label;
+        }
+    } maEndRoomOutDoor;
+    return smallestLabel;
+}
+
+// Find the last label in the chain.
+static maLabel findLastSkipToLabel(
+    maLabel label)
+{
+    maRoom room = maDoorGetFromRoom(maLabelGetDoor(label));
+    uint32 skipToValue;
+
+    utDo {
+        skipToValue = maLabelGetSkipToValue(label);
+    } utWhile(skipToValue != 0) {
+        label = findLabel(room, skipToValue);
+    } utRepeat;
+    return label;
+}
+
+// Follow skipTo values to skip labels.  If there's more than 1 in a row, update the
+// skipTo values to point to the last one.
+static maLabel skipLabels(
+    maLabel label)
+{
+    maRoom room = maDoorGetFromRoom(maLabelGetDoor(label));
+    maLabel lastLabel = findLastSkipToLabel(label);
+    maLabel nextLabel;
+    uint64 skipToValue = maLabelGetValue(lastLabel);
+
+    if(label == lastLabel) {
+        return label;
     }
+    printf("Skipping from %llu to %llu\n", maLabelGetValue(label), skipToValue);
+    while(label != lastLabel) {
+        nextLabel = findLabel(room, maLabelGetSkipToValue(label));
+        maLabelSetSkipToValue(label, skipToValue);
+        label = nextLabel;
+    }
+    return label;
 }
 
 // Solve the maze problem.
@@ -106,24 +171,48 @@ void solveMaze(maMaze maze)
     maRoom nextRoom;
     maRoom finish = maMazeGetFinishRoom(maze);
     maDoor door;
+    maLabel label;
+    uint64 count = 0;
+    uint64 followValue = 0;
+    uint64 initialFollowValue = 0;
+    bool following = false;
 
     while(currentRoom != finish) {
-        maRoomSetInPath(currentRoom, true);
-        // We are in a room at the tip of the path... find an unexplored door
-        door = maRoomGetFirstOutDoor(currentRoom);
-        utAssert(door != maDoorNull);
-        nextRoom = maDoorGetToRoom(door);
-        if(nextRoom == currentRoom) {
-            // Destroy self-looping door
-            maDoorDestroy(door);
-        } else {
-            printf("Moved through door %u from room %u to %u\n",
+        count++;
+        door = findUnexploredDoor(currentRoom);
+        if(door != maDoorNull) {
+            following = false;
+            followValue = 0;
+            initialFollowValue = 0;
+            nextRoom = maDoorGetToRoom(door);
+            printf("%llu Exploring door %u from room %u to %u\n", count,
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
-            currentRoom = nextRoom;
-            if(maRoomInPath(currentRoom)) {
-                collapseLoop(currentRoom);
+        } else {
+            if(!following) {
+                label = skipLabels(findSmallestLabel(currentRoom));
+                following = true;
+                followValue = maLabelGetValue(label);
+                initialFollowValue = followValue;
+            } else {
+                followValue++;
+                label = findLabel(currentRoom, initialFollowValue);
+                if(label != maLabelNull && maLabelGetSkipToValue(label) < followValue) {
+                    printf("Discovered loop from %llu to %llu\n", initialFollowValue,
+                        followValue);
+                    maLabelSetSkipToValue(label, followValue);
+                    initialFollowValue = followValue;
+                }
+                label = skipLabels(findLabel(currentRoom, followValue));
             }
+            followValue = maLabelGetValue(label);
+            door = maLabelGetDoor(label);
+            nextRoom = maDoorGetToRoom(door);
+            printf("%llu Following door %u from room %u to %u with label %llu\n", count,
+                maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom),
+                maLabelGetValue(label));
         }
+        maLabelCreate(door, count);
+        currentRoom = nextRoom;
     }
     printf("Found finish!\n");
 }
