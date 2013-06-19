@@ -8,7 +8,6 @@ maRoom maRoomCreate(maMaze maze)
 {
     maRoom room = maRoomAlloc();
 
-    maRoomSetMinValue(room, UINT64_MAX);
     maMazeAppendRoom(maze, room);
     return room;
 }
@@ -34,13 +33,12 @@ maLabel maLabelCreate(
     uint64 value)
 {
     maRoom room = maDoorGetFromRoom(door);
+    maMaze maze = maRoomGetMaze(room);
     maLabel label = maLabelAlloc();
 
     maLabelSetValue(label, value);
     maDoorAppendLabel(door, label);
-    if(value < maRoomGetMinValue(room)) {
-        maRoomSetMinValue(room, value);
-    }
+    maMazeAppendLabel(maze, label);
     return label;
 }
 
@@ -97,51 +95,35 @@ static maDoor findUnexploredDoor(
 }
 
 // Find the label with the smallest value.
-static maLabel findSmallestLabel(
+static maLabel findLargestLabel(
     maRoom room)
 {
     maDoor door;
-    maLabel label, smallestLabel = maLabelNull;
-    uint64 smallestValue = UINT64_MAX;
+    maLabel label, largestLabel = maLabelNull;
+    uint64 largestValue = 0;
 
     maForeachRoomOutDoor(room, door) {
-        label = maDoorGetFirstLabel(door); // Smallest label on this door
-        if(label != maLabelNull && maLabelGetValue(label) < smallestValue) {
-            smallestValue = maLabelGetValue(label);
-            smallestLabel = label;
+        label = maDoorGetLastLabel(door); // Biggest label on this door
+        if(label != maLabelNull && maLabelGetValue(label) > largestValue) {
+            largestValue = maLabelGetValue(label);
+            largestLabel = label;
         }
     } maEndRoomOutDoor;
-    return smallestLabel;
+    return largestLabel;
 }
 
-// Follow skipTo values to skip labels.  If there's more than 1 in a row, update the
-// skipTo values to point to the last one.
-static maLabel skipLabels(
-    maRoom room,
-    uint32 minLabelValue,
-    uint32 maxLabelValue)
+// Delete the loop of labels so we wont follow them any more.
+static void deleteLoop(
+    maLabel startLabel)
 {
-    maDoor door;
-    maLabel minLabel = maLabelNull;
-    maLabel label;
-    uint64 minValue = UINT64_MAX;
-    uint64 value;
+    maLabel label, nextLabel;
 
-    maForeachRoomOutDoor(room, door) {
-        maSafeForeachDoorLabel(door, label) {
-            value = maLabelGetValue(label);
-            if(value >= minLabelValue) {
-                if(value < maxLabelValue) {
-                    printf("Destroying label %llu\n", maLabelGetValue(label));
-                    maLabelDestroy(label);
-                } else if(value < minValue) {
-                    minValue = value;
-                    minLabel = label;
-                }
-            }
-        } maEndSafeDoorLabel;
-    } maEndRoomOutDoor;
-    return minLabel;
+    for(label = maLabelGetNextMazeLabel(startLabel); label != maLabelNull;
+            label = nextLabel) {
+        nextLabel = maLabelGetNextMazeLabel(label);
+        printf("Deleting label %llu\n", maLabelGetValue(label));
+        maLabelDestroy(label);
+    }
 }
 
 // Solve the maze problem.
@@ -150,11 +132,10 @@ void solveMaze(maMaze maze)
     maRoom currentRoom = maMazeGetStartRoom(maze);
     maRoom nextRoom;
     maRoom finish = maMazeGetFinishRoom(maze);
+    maRoom startRoom;
     maDoor door;
-    maLabel label;
+    maLabel currentLabel, startLabel, stopLabel;
     uint64 count = 0;
-    uint64 followValue = 0;
-    uint64 minValue = 0;
     bool following = false;
 
     while(currentRoom != finish) {
@@ -162,25 +143,32 @@ void solveMaze(maMaze maze)
         door = findUnexploredDoor(currentRoom);
         if(door != maDoorNull) {
             following = false;
-            followValue = 0;
-            minValue = 0;
+            currentLabel = maLabelNull;
+            startLabel = maLabelNull;
             nextRoom = maDoorGetToRoom(door);
             printf("%llu Exploring door %u from room %u to %u\n", count,
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
         } else {
             if(!following) {
                 following = true;
-                minValue = maRoomGetMinValue(currentRoom);
-                label = findSmallestLabel(currentRoom);
+                currentLabel = findLargestLabel(currentRoom);
+                startLabel = currentLabel;
+                stopLabel = maMazeGetLastLabel(maze);
+                startRoom = currentRoom;
             } else {
-                label = skipLabels(currentRoom, minValue, followValue);
+                currentLabel = maLabelGetNextMazeLabel(currentLabel);
+                if(currentLabel == stopLabel) {
+                    deleteLoop(startLabel);
+                    currentLabel = findLargestLabel(currentRoom);
+                    startLabel = currentLabel;
+                    startRoom = currentRoom;
+                }
             }
-            followValue = maLabelGetValue(label) + 1;
-            door = maLabelGetDoor(label);
+            door = maLabelGetDoor(currentLabel);
             nextRoom = maDoorGetToRoom(door);
             printf("%llu Following door %u from room %u to %u with label %llu\n", count,
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom),
-                maLabelGetValue(label));
+                maLabelGetValue(currentLabel));
         }
         maLabelCreate(door, count);
         currentRoom = nextRoom;

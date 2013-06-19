@@ -5,7 +5,6 @@ class Maze
 class Room
     bool start
     bool finish
-    uint64 minValue
 
 class Door
 
@@ -13,8 +12,9 @@ class Label
     uint64 value
 
 relationship Maze Room doubly_linked mandatory
-relationship Maze Room:Start child_only
+relationship Maze Room:start child_only
 relationship Maze Room:finish child_only
-relationship Room:From Door:Out doubly_linked mandatory
-relationship Room:To Door:In doubly_linked mandatory
+relationship Maze Label doubly_linked mandatory
+relationship Room:from Door:out doubly_linked mandatory
+relationship Room:to Door:in doubly_linked mandatory
 relationship Door Label doubly_linked mandatory
