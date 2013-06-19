@@ -158,6 +158,7 @@ void solveMaze(maMaze maze)
                 startRoom = currentRoom;
             } else {
                 currentLabel = maLabelGetNextMazeLabel(currentLabel);
+                utAssert(maDoorGetFromRoom(maLabelGetDoor(currentLabel)) == currentRoom);
                 if(currentLabel == stopLabel) {
                     deleteLoop(startLabel);
                     currentLabel = findLargestLabel(currentRoom);
@@ -166,6 +167,7 @@ void solveMaze(maMaze maze)
                 }
             }
             door = maLabelGetDoor(currentLabel);
+            utAssert(maDoorGetFromRoom(door) == currentRoom);
             nextRoom = maDoorGetToRoom(door);
             printf("%llu Following door %u from room %u to %u with label %llu\n", count,
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom),
