@@ -7,6 +7,7 @@ class Room
     bool finish
 
 class Door
+    bool explored
 
 class Label
     uint64 value

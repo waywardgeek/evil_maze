@@ -87,7 +87,7 @@ static maDoor findUnexploredDoor(
     maDoor door;
 
     maForeachRoomOutDoor(room, door) {
-        if(maDoorGetFirstLabel(door) == maLabelNull) {
+        if(!maDoorExplored(door)) {
             return door;
         }
     } maEndRoomOutDoor;
@@ -118,7 +118,7 @@ static void deleteLoop(
 {
     maLabel label, nextLabel;
 
-    for(label = maLabelGetNextMazeLabel(startLabel); label != maLabelNull;
+    for(label = startLabel; label != maLabelNull;
             label = nextLabel) {
         nextLabel = maLabelGetNextMazeLabel(label);
         printf("Deleting label %llu\n", maLabelGetValue(label));
@@ -146,6 +146,7 @@ void solveMaze(maMaze maze)
             currentLabel = maLabelNull;
             startLabel = maLabelNull;
             nextRoom = maDoorGetToRoom(door);
+            maDoorSetExplored(door, true);
             printf("%llu Exploring door %u from room %u to %u\n", count,
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
         } else {
@@ -170,7 +171,10 @@ void solveMaze(maMaze maze)
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom),
                 maLabelGetValue(currentLabel));
         }
-        maLabelCreate(door, count);
+        if(currentRoom != nextRoom) {
+            // Avoid making loop back to same room
+            maLabelCreate(door, count);
+        }
         currentRoom = nextRoom;
     }
     printf("Found finish!\n");
