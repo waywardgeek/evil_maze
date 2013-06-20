@@ -21,10 +21,22 @@ O>O>O>O>O>O>O>...
 ^ v v v v v v
 <<<<<<<<<<<<<
 
-To get to a linear pass to find the next unexplored door, maintain a path from the
-beginning of the search to the present.  Any loop in the path is trimmed once there are no
-unexplored doors on it.  Keep exploring the most recent loop just traversing max door
-labels until we complete a loop without finding an unexplored door.  Delete that last
-loop, and follow the most recent loop to this point before that.  If it also has no
-unexplored door, delete it.  Repeat until we find the an unexplored door.  This should
-lead to a linear time to find the next door, leading to an O(n^2) algorithm.
+To get to a linear pass to find the next unexplored door, maintain closed loop paths in
+each island of loops discovered so far that visit each room.  Also mark doors every time
+we go through them with the door transition count.  When following a path looking for an
+unexplored door, detect loops and delete them if they have no unexplored doors.  This is
+done by keeping track of the door label where we started to follow the path.  A loop
+exists if we see a door label greater than this number.  When we find an unexplored door,
+just go through it, marking the doors with the transition counter.  Continuing until an
+explored room is found, and then follow the largest door labels until we get to the
+starting point.  From there, without labeling doors, follow the largest door labels around
+the loop, creating path elements along the way.  At each point where we leave an island of
+paths, splice in the path we're making.  Finish the final splice at the door we started
+exploring through.  If we looped back onto our own island of explored rooms, we wind up
+creating a single loop and splicing it into the existing path.  If we hit other islands of
+explored rooms along the way, we splice them into the loop we're making and finally splice
+it into the path where we started.
+
+Deleting loops with no unexplored doors is safe because we only splice in loops at
+unexplored doors, so no new unexplored doors can ever be added to the loop.  The door we
+explored through will have a path to it.

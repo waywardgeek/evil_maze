@@ -8,14 +8,16 @@ class Room
 
 class Door
     bool explored
+    uint64 label
 
-class Label
-    uint64 value
+class Path
+    uint64 label
+    Path nextPath
+    Path prevPath
 
 relationship Maze Room doubly_linked mandatory
 relationship Maze Room:start child_only
 relationship Maze Room:finish child_only
-relationship Maze Label doubly_linked mandatory
 relationship Room:from Door:out doubly_linked mandatory
 relationship Room:to Door:in doubly_linked mandatory
-relationship Door Label doubly_linked mandatory
+relationship Door Path doubly_linked mandatory

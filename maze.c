@@ -27,19 +27,22 @@ maDoor maDoorCreate(maRoom from, maRoom to)
     return door;
 }
 
-// Create a new label on a door.
-maLabel maLabelCreate(
-    maDoor door,
-    uint64 value)
+// Create a new path through a door.
+maPath maPathCreate(maDoor door, uint64 label, maPath prevPath, maPath nextPath)
 {
-    maRoom room = maDoorGetFromRoom(door);
-    maMaze maze = maRoomGetMaze(room);
-    maLabel label = maLabelAlloc();
+    maPath path = maPathAlloc();
 
-    maLabelSetValue(label, value);
-    maDoorAppendLabel(door, label);
-    maMazeAppendLabel(maze, label);
-    return label;
+    maPathSetLabel(path, label);
+    maPathSetPrevPath(path, prevPath);
+    maPathSetNextPath(path, nextPath);
+    if(prevPath != maPathNull) {
+        maPathSetNextPath(prevPath, path);
+    }
+    if(nextPath != maPathNull) {
+        maPathSetPrevPath(nextPath, path);
+    }
+    maDoorAppendPath(door, path);
+    return path;
 }
 
 // Build a random maze.
@@ -94,36 +97,148 @@ static maDoor findUnexploredDoor(
     return maDoorNull;
 }
 
-// Find the label with the smallest value.
-static maLabel findLargestLabel(
+// Find the door with the largest label.
+static maDoor findLargestLabelDoor(
     maRoom room)
 {
-    maDoor door;
-    maLabel label, largestLabel = maLabelNull;
-    uint64 largestValue = 0;
+    maDoor door, largestDoor = maDoorNull;
+    uint64 label, largestLabel = 0;
 
     maForeachRoomOutDoor(room, door) {
-        label = maDoorGetLastLabel(door); // Biggest label on this door
-        if(label != maLabelNull && maLabelGetValue(label) > largestValue) {
-            largestValue = maLabelGetValue(label);
+        label = maDoorGetLabel(door);
+        if(label > largestLabel) {
             largestLabel = label;
+            largestDoor = door;
         }
     } maEndRoomOutDoor;
-    return largestLabel;
+    return largestDoor;
 }
 
 // Delete the loop of labels so we wont follow them any more.
-static void deleteLoop(
-    maLabel startLabel)
+static void deletePathLoop(
+    maPath stopPath)
 {
-    maLabel label, nextLabel;
+    maRoom startRoom = maDoorGetFromRoom(maPathGetDoor(stopPath));
+    maPath path = maPathGetPrevPath(stopPath);
+    maPath prevPath;
 
-    for(label = startLabel; label != maLabelNull;
-            label = nextLabel) {
-        nextLabel = maLabelGetNextMazeLabel(label);
-        printf("Deleting label %llu\n", maLabelGetValue(label));
-        maLabelDestroy(label);
+    while(maDoorGetFromRoom(maPathGetDoor(path)) != startRoom) {
+        prevPath = maPathGetPrevPath(path);
+        printf("Deleting path %u\n", maPath2Index(path));
+        maPathDestroy(path);
+        path = prevPath;
     }
+    prevPath = maPathGetPrevPath(path);
+    printf("Deleting path %u\n", maPath2Index(path));
+    maPathDestroy(path);
+    maPathSetPrevPath(stopPath, prevPath);
+    maPathSetNextPath(prevPath, stopPath);
+}
+
+// Follow the largest labeled doors in a loop back to this door, building path objects as
+// we go.
+static void buildLoop(
+    maRoom startRoom,
+    uint64 label)
+{
+    maRoom room = startRoom;
+    maDoor door;
+    maPath prevPath = maPathNull;
+    maPath path, firstPath = maPathNull;
+
+    printf("Building loop %llu: ", label);
+    do {
+        printf(" R%u", maRoom2Index(room));
+        door = findLargestLabelDoor(room);
+        path = maPathCreate(door, label, prevPath, maPathNull);
+        if(firstPath == maPathNull) {
+            firstPath = path;
+        }
+        prevPath = path;
+        room = maDoorGetToRoom(door);
+    } while(room != startRoom);
+    printf("\n");
+    // Now close the loop.
+    maPathSetNextPath(path, firstPath);
+    maPathSetPrevPath(firstPath, path);
+}
+
+// Just return the first path we find leaving the room.
+static maPath findPathInRoom(maRoom room)
+{
+    maDoor door;
+    maPath path;
+
+    maForeachRoomOutDoor(room, door) {
+        path = maDoorGetFirstPath(door);
+        if(path != maPathNull) {
+            return path;
+        }
+    } maEndRoomOutDoor;
+    return maPathNull;
+}
+
+// Find the path in the room with the smallests label.
+static maPath findOldestPathInRoom(
+    maRoom room)
+{
+    maDoor door;
+    maPath path, oldestPath = maPathNull;
+    uint64 smallestLabel = UINT64_MAX;
+
+    maForeachRoomOutDoor(room, door) {
+        maForeachDoorPath(door, path) {
+            if(maPathGetLabel(path) < smallestLabel) {
+                smallestLabel = maPathGetLabel(path);
+                oldestPath = path;
+            }
+        } maEndDoorPath;
+    } maEndRoomOutDoor;
+    return oldestPath;
+}
+
+// Just relable the entire path with the new label.
+static void relabelPath(maPath path, uint64 label)
+{
+    while(maPathGetLabel(path) != label) {
+        maPathSetLabel(path, label);
+        path = maPathGetNextPath(path);
+    }
+}
+
+// Splice sourcePath into destPath, and relable all the paths in sourcePath to match
+// destPath.
+static void splicePathIntoPath(maPath sourcePath, maPath destPath)
+{
+    maPath prevSourcePath = maPathGetPrevPath(sourcePath);
+    maPath prevDestPath = maPathGetPrevPath(destPath);
+
+    printf("Splicing path %llu into %llu in room %u\n", maPathGetLabel(sourcePath),
+        maPathGetLabel(destPath), maRoom2Index(maDoorGetFromRoom(maPathGetDoor(destPath))));
+    relabelPath(sourcePath, maPathGetLabel(destPath));
+    maPathSetNextPath(prevDestPath, sourcePath);
+    maPathSetPrevPath(sourcePath, prevDestPath);
+    maPathSetNextPath(prevSourcePath, destPath);
+    maPathSetPrevPath(destPath, prevSourcePath);
+}
+
+// Find all the paths in the room and splice them into one path.  Join the newer paths
+// into the oldest one, since it's likely to be larger, and we want to relable the paths
+// we splice into it.
+static void splicePaths(maRoom room)
+{
+    maPath oldestPath = findOldestPathInRoom(room);
+    maPath path;
+    maDoor door;
+    uint64 label = maPathGetLabel(oldestPath);
+
+    maForeachRoomOutDoor(room, door) {
+        maForeachDoorPath(door, path) {
+            if(maPathGetLabel(path) != label) {
+                splicePathIntoPath(path, oldestPath);
+            }
+        } maEndDoorPath;
+    } maEndRoomOutDoor;
 }
 
 // Solve the maze problem.
@@ -132,54 +247,56 @@ void solveMaze(maMaze maze)
     maRoom currentRoom = maMazeGetStartRoom(maze);
     maRoom nextRoom;
     maRoom finish = maMazeGetFinishRoom(maze);
-    maRoom startRoom;
     maDoor door;
-    maLabel currentLabel, startLabel, stopLabel;
+    maPath path;
     uint64 count = 0;
-    bool following = false;
+    uint64 startLabel;
 
-    while(currentRoom != finish) {
-        count++;
-        door = findUnexploredDoor(currentRoom);
-        if(door != maDoorNull) {
-            following = false;
-            currentLabel = maLabelNull;
-            startLabel = maLabelNull;
+    while(true) {
+        // We're in a room with an unexplored door.  Explore through it.
+        do {
+            door = findUnexploredDoor(currentRoom);
+            count++;
+            maDoorSetLabel(door, count);
             nextRoom = maDoorGetToRoom(door);
-            maDoorSetExplored(door, true);
             printf("%llu Exploring door %u from room %u to %u\n", count,
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
-        } else {
-            if(!following) {
-                following = true;
-                currentLabel = findLargestLabel(currentRoom);
-                startLabel = currentLabel;
-                stopLabel = maMazeGetLastLabel(maze);
-                startRoom = currentRoom;
-            } else {
-                currentLabel = maLabelGetNextMazeLabel(currentLabel);
-                utAssert(maDoorGetFromRoom(maLabelGetDoor(currentLabel)) == currentRoom);
-                if(currentLabel == stopLabel) {
-                    deleteLoop(startLabel);
-                    currentLabel = findLargestLabel(currentRoom);
-                    startLabel = currentLabel;
-                    startRoom = currentRoom;
-                }
+            maDoorSetExplored(door, true);
+            currentRoom = nextRoom;
+            door = findLargestLabelDoor(currentRoom);
+            if(currentRoom == finish) {
+                printf("Found finish!\n");
+                return;
             }
-            door = maLabelGetDoor(currentLabel);
+        } while(door == maDoorNull);
+        // We found an explored room.  Make a loop.
+        buildLoop(currentRoom, count);
+        // Now we're in a room with a path in it.  Follow a path until we find an
+        // unexplored door.  Splice together different paths that we find, and delete
+        // loops with no unexplored doors.
+        startLabel = count;
+        path = findPathInRoom(currentRoom);
+        utDo {
+            splicePaths(currentRoom);
+            door = findUnexploredDoor(currentRoom);
+        } utWhile(door == maDoorNull) {
+            door = findLargestLabelDoor(currentRoom);
+            if(maDoorGetLabel(door) > startLabel) {
+                // Leaves this path object intact
+                deletePathLoop(path);
+            }
+            door = maPathGetDoor(path);
             utAssert(maDoorGetFromRoom(door) == currentRoom);
+            count++;
+            maDoorSetLabel(door, count);
             nextRoom = maDoorGetToRoom(door);
-            printf("%llu Following door %u from room %u to %u with label %llu\n", count,
-                maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom),
-                maLabelGetValue(currentLabel));
-        }
-        if(currentRoom != nextRoom) {
-            // Avoid making loop back to same room
-            maLabelCreate(door, count);
-        }
-        currentRoom = nextRoom;
+            printf("%llu Following path %llu through door %u from room %u to %u\n", count,
+                maPathGetLabel(path), maDoor2Index(door), maRoom2Index(currentRoom),
+                maRoom2Index(nextRoom));
+            currentRoom = nextRoom;
+            path = maPathGetNextPath(path);
+        } utRepeat;
     }
-    printf("Found finish!\n");
 }
 
 // Dump the room
