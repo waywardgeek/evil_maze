@@ -1,0 +1,12 @@
+#!/bin/bash
+
+for ((doors=2; doors <= 6; doors++)); do
+    echo "Testing with $doors doors"
+    for ((rooms=2; rooms <= 100; rooms++)); do
+        if [ "`./maze $rooms $doors 1 | grep 'finish'`" != "Found finish!" ]; then
+            echo "Failed for $rooms rooms and $doors doors."
+            exit 1
+        fi
+    done
+done
+echo "All tests passed"
