@@ -120,16 +120,18 @@ static void deletePathLoop(
 {
     maRoom startRoom = maDoorGetFromRoom(maPathGetDoor(stopPath));
     maPath path = maPathGetPrevPath(stopPath);
+    maRoom room = maDoorGetFromRoom(maPathGetDoor(path));
     maPath prevPath;
 
-    while(maDoorGetFromRoom(maPathGetDoor(path)) != startRoom) {
+    while(room != startRoom) {
         prevPath = maPathGetPrevPath(path);
-        printf("Deleting path %u\n", maPath2Index(path));
+        printf("Deleting path element %u in R%u\n", maPath2Index(path), maRoom2Index(room));
         maPathDestroy(path);
         path = prevPath;
+        room = maDoorGetFromRoom(maPathGetDoor(path));
     }
     prevPath = maPathGetPrevPath(path);
-    printf("Deleting path %u\n", maPath2Index(path));
+    printf("Deleting path element %u in R%u\n", maPath2Index(path), maRoom2Index(room));
     maPathDestroy(path);
     maPathSetPrevPath(stopPath, prevPath);
     maPathSetNextPath(prevPath, stopPath);
@@ -224,21 +226,24 @@ static void splicePathIntoPath(maPath sourcePath, maPath destPath)
 
 // Find all the paths in the room and splice them into one path.  Join the newer paths
 // into the oldest one, since it's likely to be larger, and we want to relable the paths
-// we splice into it.
-static void splicePaths(maRoom room)
+// we splice into it.  Return true if we do splice any paths together.
+static bool splicePaths(maRoom room)
 {
     maPath oldestPath = findOldestPathInRoom(room);
     maPath path;
     maDoor door;
     uint64 label = maPathGetLabel(oldestPath);
+    bool splicedAPath = false;
 
     maForeachRoomOutDoor(room, door) {
         maForeachDoorPath(door, path) {
             if(maPathGetLabel(path) != label) {
                 splicePathIntoPath(path, oldestPath);
+                splicedAPath = true;
             }
         } maEndDoorPath;
     } maEndRoomOutDoor;
+    return splicedAPath;
 }
 
 // Solve the maze problem.
@@ -277,13 +282,16 @@ void solveMaze(maMaze maze)
         startLabel = count;
         path = findPathInRoom(currentRoom);
         utDo {
-            splicePaths(currentRoom);
+            if(splicePaths(currentRoom)) {
+                startLabel = count; // Splicing in a path can add unexplored doors
+            }
             door = findUnexploredDoor(currentRoom);
         } utWhile(door == maDoorNull) {
             door = findLargestLabelDoor(currentRoom);
             if(maDoorGetLabel(door) > startLabel) {
                 // Leaves this path object intact
                 deletePathLoop(path);
+                startLabel = count;
             }
             door = maPathGetDoor(path);
             utAssert(maDoorGetFromRoom(door) == currentRoom);
