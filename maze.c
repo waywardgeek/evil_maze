@@ -201,6 +201,8 @@ static maPath findOldestPathInRoom(
 static void relabelPath(maPath path, uint64 label)
 {
     while(maPathGetLabel(path) != label) {
+        printf("Relabling path %llu into %llu in room %u\n", maPathGetLabel(path),
+            label, maRoom2Index(maDoorGetFromRoom(maPathGetDoor(path))));
         maPathSetLabel(path, label);
         path = maPathGetNextPath(path);
     }
@@ -213,8 +215,6 @@ static void splicePathIntoPath(maPath sourcePath, maPath destPath)
     maPath prevSourcePath = maPathGetPrevPath(sourcePath);
     maPath prevDestPath = maPathGetPrevPath(destPath);
 
-    printf("Splicing path %llu into %llu in room %u\n", maPathGetLabel(sourcePath),
-        maPathGetLabel(destPath), maRoom2Index(maDoorGetFromRoom(maPathGetDoor(destPath))));
     relabelPath(sourcePath, maPathGetLabel(destPath));
     maPathSetNextPath(prevDestPath, sourcePath);
     maPathSetPrevPath(sourcePath, prevDestPath);
