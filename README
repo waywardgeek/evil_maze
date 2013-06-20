@@ -1,42 +1,41 @@
-This algorithm works as follows:
+A difficult maze related problem is the one-way door maze.  Imagine you have an infinite
+cryon, and can write on walls floors and doors, but you have no paper to make a map.  Your
+job is to exit the maze in as little time as possible.  The "run screaming" algorithm will
+eventually get you out, just by picking doors at random and going as fast as you can.
+However, it's runtime is exponential!  Even with a map, evil mazes where most doors take
+you back towards the start and away from the finish require O(n^2) time to solve.  So, is
+there an algorithm like the ones we use to solve regular mazes that will get us out in
+O(n^2) time without a map?  Yes... but it took me 22 years to figure it out!
 
-- Every time we explore through a series of unexplored rooms, and arrive at a room we'be
-  seen before, we create a new "loop" consisting of the chain of newly explored rooms and
-  the most recently visited rooms leading from the loop point back to itself.
-- Loops connect to each other in an undirected graph.  To explore the entire set of rooms
-  in all the loops, just do standard tree embedding.
-- Any loop that has no room to itself can be deleted.
+The algorithm works as follows:
 
-If there are n rooms, then there are at most n loops of at most n rooms each, making the
-loop graph size O(n^2).  The algorithm finds the next unexplored door in a few linear
-passes of this graph.  This solves the maze in O(n^3).
+1) We keep a door transition count that we increment every time we are about to go through
+   a door.  We write this count on the door when we go through.
+2) Every time we explore through a series of unexplored rooms, and arrive at a room we've
+   seen before (which we can see from the door labels), we create a new "loop" consisting
+   of the chain of newly explored rooms and the most recently visited rooms leading from
+   the loop point back to itself.  Just follow the chain of largest numbered doors (without
+   incrementint our counter or labeling doors) drawing an arrow from the door you entered
+   through to the door you leave through, and label the arrow with the counter value.
+   Don't increment the counter while creating the loop, so the entire loop gets the same
+   label.
+3) While the current room has no unexplored doors, we first remember the current count
+   value, and then do the folling:
+    - Merge any new loops seen in the room into old ones.  This does require that we
+      traverse the newer loop, changing it's labels to the older loop label.  Also, we'll
+      need to redraw the arrows so that the old path feeds into the new one and vise
+      versa.  If we merged any loops, update the remembered count value to the current
+      count.
+    - If there is an unexplored door, explore through it.  Go back to step 2.
+    - If the room has a door label larger than the remembered count, we must have
+      traversed a whole loop without finding any unexplored doors.  There is no reason to
+      keep track of this loop, so delete it, which requires another loop traversal.  Don't
+      update the couter or label doors while deleting the loop.  After deleting it, draw
+      an arrow from the door that used to lead into the loop to the door the loop used to
+      go through when we'd finished the loop.
 
-Solving the maze in O(n^3) time requires finding an unexplored door in linear time.  A
-nasty map to make this hard looks like:
-
-
-O>O>O>O>O>O>O>...
-^ v v v v v v
-^ O-O-O-O-O-O
-^ v v v v v v
-<<<<<<<<<<<<<
-
-To get to a linear pass to find the next unexplored door, maintain closed loop paths in
-each island of loops discovered so far that visit each room.  Also mark doors every time
-we go through them with the door transition count.  When following a path looking for an
-unexplored door, detect loops and delete them if they have no unexplored doors.  This is
-done by keeping track of the door label where we started to follow the path.  A loop
-exists if we see a door label greater than this number.  When we find an unexplored door,
-just go through it, marking the doors with the transition counter.  Continuing until an
-explored room is found, and then follow the largest door labels until we get to the
-starting point.  From there, without labeling doors, follow the largest door labels around
-the loop, creating path elements along the way.  At each point where we leave an island of
-paths, splice in the path we're making.  Finish the final splice at the door we started
-exploring through.  If we looped back onto our own island of explored rooms, we wind up
-creating a single loop and splicing it into the existing path.  If we hit other islands of
-explored rooms along the way, we splice them into the loop we're making and finally splice
-it into the path where we started.
-
-Deleting loops with no unexplored doors is safe because we only splice in loops at
-unexplored doors, so no new unexplored doors can ever be added to the loop.  The door we
-explored through will have a path to it.
+If there are D doors and N rooms, then there are at most D loops of at most N doors each,
+making the loop graph size O(N*D).  However, an unexplored door will be found on each
+traversal of any of the loops until there are no more, at which point the loop is deleted.
+On average, a door will be found in O(N) transitions.  The expected runtime is then
+O(N*D), or more informally, it's quadratic in terms of the size of the maze.
