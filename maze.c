@@ -148,18 +148,16 @@ static void buildLoop(
     maPath prevPath = maPathNull;
     maPath path, firstPath = maPathNull;
 
-    printf("Building loop %llu: ", label);
     do {
-        printf(" R%u", maRoom2Index(room));
         door = findLargestLabelDoor(room);
         path = maPathCreate(door, label, prevPath, maPathNull);
+        printf("Building loop %llu path element %u\n", label, maPath2Index(path));
         if(firstPath == maPathNull) {
             firstPath = path;
         }
         prevPath = path;
         room = maDoorGetToRoom(door);
     } while(room != startRoom);
-    printf("\n");
     // Now close the loop.
     maPathSetNextPath(path, firstPath);
     maPathSetPrevPath(firstPath, path);
