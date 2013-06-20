@@ -39,3 +39,12 @@ making the loop graph size O(N*D).  However, an unexplored door will be found on
 traversal of any of the loops until there are no more, at which point the loop is deleted.
 On average, a door will be found in O(N) transitions.  The expected runtime is then
 O(N*D), or more informally, it's quadratic in terms of the size of the maze.
+
+Various improvements are possible, but I'd like to keep this algorithm simple.  For one
+thing, we don't have to build loops when we don't discover any rooms without paths that
+have unexploreed doors.  It is a significant complication, however.  Also, we could
+combine creating a loop and splicing paths in one transition of the loop instead of two.
+Another improvement would be doing a better job of detecting when we have to reset our
+startLabel, as we don't have to do it every time we delete a loop or splice paths
+together.  However, all of these improvements provide only a constant factor speedup,
+while complicating the code.

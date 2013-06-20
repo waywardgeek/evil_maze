@@ -266,11 +266,11 @@ void solveMaze(maMaze maze)
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
             maDoorSetExplored(door, true);
             currentRoom = nextRoom;
-            door = findLargestLabelDoor(currentRoom);
             if(currentRoom == finish) {
                 printf("Found finish!\n");
                 return;
             }
+            door = findLargestLabelDoor(currentRoom);
         } while(door == maDoorNull);
         // We found an explored room.  Make a loop.
         buildLoop(currentRoom, count);
