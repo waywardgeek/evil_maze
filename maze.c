@@ -259,7 +259,6 @@ void solveMaze(maMaze maze)
 
     while(true) {
         // We're in a room with an unexplored door.  Explore through it.
-        startLabel = count;
         do {
             door = findUnexploredDoor(currentRoom);
             count++;
@@ -269,35 +268,14 @@ void solveMaze(maMaze maze)
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
             maDoorSetExplored(door, true);
             currentRoom = nextRoom;
+            door = findLargestLabelDoor(currentRoom);
             if(currentRoom == finish) {
                 printf("Found finish!\n");
                 return;
             }
-            door = findLargestLabelDoor(currentRoom);
         } while(door == maDoorNull);
-        if(count == startLabel + 1) {
-            // We didn't discover any unexplored rooms.  Lets see if there are any
-            // unexplored doors on the loop path, because if not, there's no need to build
-            // the loop.
-            while(findPathInRoom(currentRoom) == maPathNull &&
-                    findUnexploredDoor(currentRoom) == maDoorNull) {
-                door = findLargestLabelDoor(currentRoom);
-                count++;
-                maDoorSetLabel(door, count);
-                nextRoom = maDoorGetToRoom(door);
-                printf("%llu Following recent loop through door %u from room %u to %u\n",
-                    count, maDoor2Index(door), maRoom2Index(currentRoom),
-                    maRoom2Index(nextRoom));
-                currentRoom = nextRoom;
-            }
-            if(findPathInRoom(currentRoom) == maPathNull) {
-                // We found an unexplored door in a room with no path, so we need the loop.
-                buildLoop(currentRoom, count);
-            }
-        } else {
-            // We traversed through unexplored rooms, so we need the loop.
-            buildLoop(currentRoom, count);
-        }
+        // We found an explored room.  Make a loop.
+        buildLoop(currentRoom, count);
         // Now we're in a room with a path in it.  Follow a path until we find an
         // unexplored door.  Splice together different paths that we find, and delete
         // loops with no unexplored doors.
