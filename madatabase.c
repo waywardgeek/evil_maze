@@ -69,6 +69,13 @@ static void allocMazes(void)
     maSetFirstFreeMaze(maMazeNull);
     maMazes.FirstRoom = utNewAInitFirst(maRoom, (maAllocatedMaze()));
     maMazes.LastRoom = utNewAInitFirst(maRoom, (maAllocatedMaze()));
+    maMazes.RoomTableIndex_ = utNewAInitFirst(uint32, (maAllocatedMaze()));
+    maMazes.NumRoomTable = utNewAInitFirst(uint32, (maAllocatedMaze()));
+    maSetUsedMazeRoomTable(0);
+    maSetAllocatedMazeRoomTable(2);
+    maSetFreeMazeRoomTable(0);
+    maMazes.RoomTable = utNewAInitFirst(maRoom, maAllocatedMazeRoomTable());
+    maMazes.NumRoom = utNewAInitFirst(uint32, (maAllocatedMaze()));
     maMazes.StartRoom = utNewAInitFirst(maRoom, (maAllocatedMaze()));
     maMazes.FinishRoom = utNewAInitFirst(maRoom, (maAllocatedMaze()));
 }
@@ -81,6 +88,9 @@ static void reallocMazes(
 {
     utResizeArray(maMazes.FirstRoom, (newSize));
     utResizeArray(maMazes.LastRoom, (newSize));
+    utResizeArray(maMazes.RoomTableIndex_, (newSize));
+    utResizeArray(maMazes.NumRoomTable, (newSize));
+    utResizeArray(maMazes.NumRoom, (newSize));
     utResizeArray(maMazes.StartRoom, (newSize));
     utResizeArray(maMazes.FinishRoom, (newSize));
     maSetAllocatedMaze(newSize);
@@ -95,12 +105,335 @@ void maMazeAllocMore(void)
 }
 
 /*----------------------------------------------------------------------------------------
+  Compact the Maze.RoomTable heap to free memory.
+----------------------------------------------------------------------------------------*/
+void maCompactMazeRoomTables(void)
+{
+    uint32 elementSize = sizeof(maRoom);
+    uint32 usedHeaderSize = (sizeof(maMaze) + elementSize - 1)/elementSize;
+    uint32 freeHeaderSize = (sizeof(maMaze) + sizeof(uint32) + elementSize - 1)/elementSize;
+    maRoom *toPtr = maMazes.RoomTable;
+    maRoom *fromPtr = toPtr;
+    maMaze Maze;
+    uint32 size;
+
+    while(fromPtr < maMazes.RoomTable + maUsedMazeRoomTable()) {
+        Maze = *(maMaze *)(void *)fromPtr;
+        if(Maze != maMazeNull) {
+            /* Need to move it to toPtr */
+            size = utMax(maMazeGetNumRoomTable(Maze) + usedHeaderSize, freeHeaderSize);
+            memmove((void *)toPtr, (void *)fromPtr, size*elementSize);
+            maMazeSetRoomTableIndex_(Maze, toPtr - maMazes.RoomTable + usedHeaderSize);
+            toPtr += size;
+        } else {
+            /* Just skip it */
+            size = utMax(*(uint32 *)(void *)(((maMaze *)(void *)fromPtr) + 1), freeHeaderSize);
+        }
+        fromPtr += size;
+    }
+    maSetUsedMazeRoomTable(toPtr - maMazes.RoomTable);
+    maSetFreeMazeRoomTable(0);
+}
+
+/*----------------------------------------------------------------------------------------
+  Allocate more memory for the Maze.RoomTable heap.
+----------------------------------------------------------------------------------------*/
+static void allocMoreMazeRoomTables(
+    uint32 spaceNeeded)
+{
+    uint32 freeSpace = maAllocatedMazeRoomTable() - maUsedMazeRoomTable();
+    uint32 elementSize = sizeof(maRoom);
+    uint32 usedHeaderSize = (sizeof(maMaze) + elementSize - 1)/elementSize;
+    uint32 freeHeaderSize = (sizeof(maMaze) + sizeof(uint32) + elementSize - 1)/elementSize;
+    maRoom *ptr = maMazes.RoomTable;
+    maMaze Maze;
+    uint32 size;
+
+    while(ptr < maMazes.RoomTable + maUsedMazeRoomTable()) {
+        Maze = *(maMaze*)(void*)ptr;
+        if(Maze != maMazeNull) {
+            maValidMaze(Maze);
+            size = utMax(maMazeGetNumRoomTable(Maze) + usedHeaderSize, freeHeaderSize);
+        } else {
+            size = utMax(*(uint32 *)(void *)(((maMaze *)(void *)ptr) + 1), freeHeaderSize);
+        }
+        ptr += size;
+    }
+    if((maFreeMazeRoomTable() << 2) > maUsedMazeRoomTable()) {
+        maCompactMazeRoomTables();
+        freeSpace = maAllocatedMazeRoomTable() - maUsedMazeRoomTable();
+    }
+    if(freeSpace < spaceNeeded) {
+        maSetAllocatedMazeRoomTable(maAllocatedMazeRoomTable() + spaceNeeded - freeSpace +
+            (maAllocatedMazeRoomTable() >> 1));
+        utResizeArray(maMazes.RoomTable, maAllocatedMazeRoomTable());
+    }
+}
+
+/*----------------------------------------------------------------------------------------
+  Allocate memory for a new Maze.RoomTable array.
+----------------------------------------------------------------------------------------*/
+void maMazeAllocRoomTables(
+    maMaze Maze,
+    uint32 numRoomTables)
+{
+    uint32 freeSpace = maAllocatedMazeRoomTable() - maUsedMazeRoomTable();
+    uint32 elementSize = sizeof(maRoom);
+    uint32 usedHeaderSize = (sizeof(maMaze) + elementSize - 1)/elementSize;
+    uint32 freeHeaderSize = (sizeof(maMaze) + sizeof(uint32) + elementSize - 1)/elementSize;
+    uint32 spaceNeeded = utMax(numRoomTables + usedHeaderSize, freeHeaderSize);
+
+#if defined(DD_DEBUG)
+    utAssert(maMazeGetNumRoomTable(Maze) == 0);
+#endif
+    if(numRoomTables == 0) {
+        return;
+    }
+    if(freeSpace < spaceNeeded) {
+        allocMoreMazeRoomTables(spaceNeeded);
+    }
+    maMazeSetRoomTableIndex_(Maze, maUsedMazeRoomTable() + usedHeaderSize);
+    maMazeSetNumRoomTable(Maze, numRoomTables);
+    *(maMaze *)(void *)(maMazes.RoomTable + maUsedMazeRoomTable()) = Maze;
+    {
+        uint32 xValue;
+        for(xValue = (uint32)(maMazeGetRoomTableIndex_(Maze)); xValue < maMazeGetRoomTableIndex_(Maze) + numRoomTables; xValue++) {
+            maMazes.RoomTable[xValue] = maRoomNull;
+        }
+    }
+    maSetUsedMazeRoomTable(maUsedMazeRoomTable() + spaceNeeded);
+}
+
+/*----------------------------------------------------------------------------------------
+  Wrapper around maMazeGetRoomTables for the database manager.
+----------------------------------------------------------------------------------------*/
+static void *getMazeRoomTables(
+    uint64 objectNumber,
+    uint32 *numValues)
+{
+    maMaze Maze = maIndex2Maze((uint32)objectNumber);
+
+    *numValues = maMazeGetNumRoomTable(Maze);
+    return maMazeGetRoomTables(Maze);
+}
+
+/*----------------------------------------------------------------------------------------
+  Wrapper around maMazeAllocRoomTables for the database manager.
+----------------------------------------------------------------------------------------*/
+static void *allocMazeRoomTables(
+    uint64 objectNumber,
+    uint32 numValues)
+{
+    maMaze Maze = maIndex2Maze((uint32)objectNumber);
+
+    maMazeSetRoomTableIndex_(Maze, 0);
+    maMazeSetNumRoomTable(Maze, 0);
+    if(numValues == 0) {
+        return NULL;
+    }
+    maMazeAllocRoomTables(Maze, numValues);
+    return maMazeGetRoomTables(Maze);
+}
+
+/*----------------------------------------------------------------------------------------
+  Free memory used by the Maze.RoomTable array.
+----------------------------------------------------------------------------------------*/
+void maMazeFreeRoomTables(
+    maMaze Maze)
+{
+    uint32 elementSize = sizeof(maRoom);
+    uint32 usedHeaderSize = (sizeof(maMaze) + elementSize - 1)/elementSize;
+    uint32 freeHeaderSize = (sizeof(maMaze) + sizeof(uint32) + elementSize - 1)/elementSize;
+    uint32 size = utMax(maMazeGetNumRoomTable(Maze) + usedHeaderSize, freeHeaderSize);
+    maRoom *dataPtr = maMazeGetRoomTables(Maze) - usedHeaderSize;
+
+    if(maMazeGetNumRoomTable(Maze) == 0) {
+        return;
+    }
+    *(maMaze *)(void *)(dataPtr) = maMazeNull;
+    *(uint32 *)(void *)(((maMaze *)(void *)dataPtr) + 1) = size;
+    maMazeSetNumRoomTable(Maze, 0);
+    maSetFreeMazeRoomTable(maFreeMazeRoomTable() + size);
+}
+
+/*----------------------------------------------------------------------------------------
+  Resize the Maze.RoomTable array.
+----------------------------------------------------------------------------------------*/
+void maMazeResizeRoomTables(
+    maMaze Maze,
+    uint32 numRoomTables)
+{
+    uint32 freeSpace;
+    uint32 elementSize = sizeof(maRoom);
+    uint32 usedHeaderSize = (sizeof(maMaze) + elementSize - 1)/elementSize;
+    uint32 freeHeaderSize = (sizeof(maMaze) + sizeof(uint32) + elementSize - 1)/elementSize;
+    uint32 newSize = utMax(numRoomTables + usedHeaderSize, freeHeaderSize);
+    uint32 oldSize = utMax(maMazeGetNumRoomTable(Maze) + usedHeaderSize, freeHeaderSize);
+    maRoom *dataPtr;
+
+    if(numRoomTables == 0) {
+        if(maMazeGetNumRoomTable(Maze) != 0) {
+            maMazeFreeRoomTables(Maze);
+        }
+        return;
+    }
+    if(maMazeGetNumRoomTable(Maze) == 0) {
+        maMazeAllocRoomTables(Maze, numRoomTables);
+        return;
+    }
+    freeSpace = maAllocatedMazeRoomTable() - maUsedMazeRoomTable();
+    if(freeSpace < newSize) {
+        allocMoreMazeRoomTables(newSize);
+    }
+    dataPtr = maMazeGetRoomTables(Maze) - usedHeaderSize;
+    memcpy((void *)(maMazes.RoomTable + maUsedMazeRoomTable()), dataPtr,
+        elementSize*utMin(oldSize, newSize));
+    if(newSize > oldSize) {
+        {
+            uint32 xValue;
+            for(xValue = (uint32)(maUsedMazeRoomTable() + oldSize); xValue < maUsedMazeRoomTable() + oldSize + newSize - oldSize; xValue++) {
+                maMazes.RoomTable[xValue] = maRoomNull;
+            }
+        }
+    }
+    *(maMaze *)(void *)dataPtr = maMazeNull;
+    *(uint32 *)(void *)(((maMaze *)(void *)dataPtr) + 1) = oldSize;
+    maSetFreeMazeRoomTable(maFreeMazeRoomTable() + oldSize);
+    maMazeSetRoomTableIndex_(Maze, maUsedMazeRoomTable() + usedHeaderSize);
+    maMazeSetNumRoomTable(Maze, numRoomTables);
+    maSetUsedMazeRoomTable(maUsedMazeRoomTable() + newSize);
+}
+
+/*----------------------------------------------------------------------------------------
   Copy the properties of Maze.
 ----------------------------------------------------------------------------------------*/
 void maMazeCopyProps(
     maMaze oldMaze,
     maMaze newMaze)
 {
+}
+
+/*----------------------------------------------------------------------------------------
+  Increase the size of the hash table.
+----------------------------------------------------------------------------------------*/
+static void resizeMazeRoomHashTable(
+    maMaze Maze)
+{
+    maRoom _Room, prevRoom, nextRoom;
+    uint32 oldNumRooms = maMazeGetNumRoomTable(Maze);
+    uint32 newNumRooms = oldNumRooms << 1;
+    uint32 xRoom, index;
+
+    if(newNumRooms == 0) {
+        newNumRooms = 2;
+        maMazeAllocRoomTables(Maze, 2);
+    } else {
+        maMazeResizeRoomTables(Maze, newNumRooms);
+    }
+    for(xRoom = 0; xRoom < oldNumRooms; xRoom++) {
+        _Room = maMazeGetiRoomTable(Maze, xRoom);
+        prevRoom = maRoomNull;
+        while(_Room != maRoomNull) {
+            nextRoom = maRoomGetNextTableMazeRoom(_Room);
+            index = (newNumRooms - 1) & utSym2Index(maRoomGetSym(_Room));
+            if(index != xRoom) {
+                if(prevRoom == maRoomNull) {
+                    maMazeSetiRoomTable(Maze, xRoom, nextRoom);
+                } else {
+                    maRoomSetNextTableMazeRoom(prevRoom, nextRoom);
+                }
+                maRoomSetNextTableMazeRoom(_Room, maMazeGetiRoomTable(Maze, index));
+                maMazeSetiRoomTable(Maze, index, _Room);
+            } else {
+                prevRoom = _Room;
+            }
+            _Room = nextRoom;
+        }
+    }
+}
+
+/*----------------------------------------------------------------------------------------
+  Add the Room to the Maze.  If the table is near full, build a new one twice
+  as big, delete the old one, and return the new one.
+----------------------------------------------------------------------------------------*/
+static void addMazeRoomToHashTable(
+    maMaze Maze,
+    maRoom _Room)
+{
+    maRoom nextRoom;
+    uint32 index;
+
+    if(maMazeGetNumRoom(Maze) >> 1 >= maMazeGetNumRoomTable(Maze)) {
+        resizeMazeRoomHashTable(Maze);
+    }
+    index = (maMazeGetNumRoomTable(Maze) - 1) & utSym2Index(maRoomGetSym(_Room));
+    nextRoom = maMazeGetiRoomTable(Maze, index);
+    maRoomSetNextTableMazeRoom(_Room, nextRoom);
+    maMazeSetiRoomTable(Maze, index, _Room);
+    maMazeSetNumRoom(Maze, maMazeGetNumRoom(Maze) + 1);
+}
+
+/*----------------------------------------------------------------------------------------
+  Remove the Room from the hash table.
+----------------------------------------------------------------------------------------*/
+static void removeMazeRoomFromHashTable(
+    maMaze Maze,
+    maRoom _Room)
+{
+    uint32 index = (maMazeGetNumRoomTable(Maze) - 1) & utSym2Index(maRoomGetSym(_Room));
+    maRoom prevRoom, nextRoom;
+    
+    nextRoom = maMazeGetiRoomTable(Maze, index);
+    if(nextRoom == _Room) {
+        maMazeSetiRoomTable(Maze, index, maRoomGetNextTableMazeRoom(nextRoom));
+    } else {
+        do {
+            prevRoom = nextRoom;
+            nextRoom = maRoomGetNextTableMazeRoom(nextRoom);
+        } while(nextRoom != _Room);
+        maRoomSetNextTableMazeRoom(prevRoom, maRoomGetNextTableMazeRoom(_Room));
+    }
+    maMazeSetNumRoom(Maze, maMazeGetNumRoom(Maze) - 1);
+    maRoomSetNextTableMazeRoom(_Room, maRoomNull);
+}
+
+/*----------------------------------------------------------------------------------------
+  Find the Room from the Maze and its hash key.
+----------------------------------------------------------------------------------------*/
+maRoom maMazeFindRoom(
+    maMaze Maze,
+    utSym Sym)
+{
+    uint32 mask = maMazeGetNumRoomTable(Maze) - 1;
+    maRoom _Room;
+
+    if(mask + 1 != 0) {
+        _Room = maMazeGetiRoomTable(Maze, utSym2Index(Sym) & mask);
+        while(_Room != maRoomNull) {
+            if(maRoomGetSym(_Room) == Sym) {
+                return _Room;
+            }
+            _Room = maRoomGetNextTableMazeRoom(_Room);
+        }
+    }
+    return maRoomNull;
+}
+
+/*----------------------------------------------------------------------------------------
+  Find the Room from the Maze and its name.
+----------------------------------------------------------------------------------------*/
+void maMazeRenameRoom(
+    maMaze Maze,
+    maRoom _Room,
+    utSym sym)
+{
+    if(maRoomGetSym(_Room) != utSymNull) {
+        removeMazeRoomFromHashTable(Maze, _Room);
+    }
+    maRoomSetSym(_Room, sym);
+    if(sym != utSymNull) {
+        addMazeRoomToHashTable(Maze, _Room);
+    }
 }
 
 /*----------------------------------------------------------------------------------------
@@ -131,6 +464,9 @@ void maMazeInsertRoom(
         maMazeSetLastRoom(Maze, _Room);
     }
     maRoomSetMaze(_Room, Maze);
+    if(maRoomGetSym(_Room) != utSymNull) {
+        addMazeRoomToHashTable(Maze, _Room);
+    }
 }
 
 /*----------------------------------------------------------------------------------------
@@ -161,6 +497,9 @@ void maMazeAppendRoom(
         maMazeSetFirstRoom(Maze, _Room);
     }
     maRoomSetMaze(_Room, Maze);
+    if(maRoomGetSym(_Room) != utSymNull) {
+        addMazeRoomToHashTable(Maze, _Room);
+    }
 }
 
 /*----------------------------------------------------------------------------------------
@@ -194,6 +533,9 @@ void maMazeInsertAfterRoom(
         maMazeSetLastRoom(Maze, _Room);
     }
     maRoomSetMaze(_Room, Maze);
+    if(maRoomGetSym(_Room) != utSymNull) {
+        addMazeRoomToHashTable(Maze, _Room);
+    }
 }
 
 /*----------------------------------------------------------------------------------------
@@ -228,6 +570,9 @@ void maMazeRemoveRoom(
     maRoomSetNextMazeRoom(_Room, maRoomNull);
     maRoomSetPrevMazeRoom(_Room, maRoomNull);
     maRoomSetMaze(_Room, maMazeNull);
+    if(maRoomGetSym(_Room) != utSymNull) {
+        removeMazeRoomFromHashTable(Maze, _Room);
+    }
 }
 
 #if defined(DD_DEBUG)
@@ -297,11 +642,11 @@ static void allocRooms(void)
     maSetAllocatedRoom(2);
     maSetUsedRoom(1);
     maSetFirstFreeRoom(maRoomNull);
-    maRooms.Start = utNewAInitFirst(uint8, (maAllocatedRoom()));
-    maRooms.Finish = utNewAInitFirst(uint8, (maAllocatedRoom()));
+    maRooms.Sym = utNewAInitFirst(utSym, (maAllocatedRoom()));
     maRooms.Maze = utNewAInitFirst(maMaze, (maAllocatedRoom()));
     maRooms.NextMazeRoom = utNewAInitFirst(maRoom, (maAllocatedRoom()));
     maRooms.PrevMazeRoom = utNewAInitFirst(maRoom, (maAllocatedRoom()));
+    maRooms.NextTableMazeRoom = utNewAInitFirst(maRoom, (maAllocatedRoom()));
     maRooms.FirstOutDoor = utNewAInitFirst(maDoor, (maAllocatedRoom()));
     maRooms.LastOutDoor = utNewAInitFirst(maDoor, (maAllocatedRoom()));
     maRooms.FirstInDoor = utNewAInitFirst(maDoor, (maAllocatedRoom()));
@@ -314,11 +659,11 @@ static void allocRooms(void)
 static void reallocRooms(
     uint32 newSize)
 {
-    utResizeArray(maRooms.Start, (newSize));
-    utResizeArray(maRooms.Finish, (newSize));
+    utResizeArray(maRooms.Sym, (newSize));
     utResizeArray(maRooms.Maze, (newSize));
     utResizeArray(maRooms.NextMazeRoom, (newSize));
     utResizeArray(maRooms.PrevMazeRoom, (newSize));
+    utResizeArray(maRooms.NextTableMazeRoom, (newSize));
     utResizeArray(maRooms.FirstOutDoor, (newSize));
     utResizeArray(maRooms.LastOutDoor, (newSize));
     utResizeArray(maRooms.FirstInDoor, (newSize));
@@ -341,8 +686,6 @@ void maRoomCopyProps(
     maRoom oldRoom,
     maRoom newRoom)
 {
-    maRoomSetStart(newRoom, maRoomStart(oldRoom));
-    maRoomSetFinish(newRoom, maRoomFinish(oldRoom));
 }
 
 /*----------------------------------------------------------------------------------------
@@ -968,13 +1311,17 @@ void maDatabaseStop(void)
 {
     utFree(maMazes.FirstRoom);
     utFree(maMazes.LastRoom);
+    utFree(maMazes.RoomTableIndex_);
+    utFree(maMazes.NumRoomTable);
+    utFree(maMazes.RoomTable);
+    utFree(maMazes.NumRoom);
     utFree(maMazes.StartRoom);
     utFree(maMazes.FinishRoom);
-    utFree(maRooms.Start);
-    utFree(maRooms.Finish);
+    utFree(maRooms.Sym);
     utFree(maRooms.Maze);
     utFree(maRooms.NextMazeRoom);
     utFree(maRooms.PrevMazeRoom);
+    utFree(maRooms.NextTableMazeRoom);
     utFree(maRooms.FirstOutDoor);
     utFree(maRooms.LastOutDoor);
     utFree(maRooms.FirstInDoor);
@@ -1007,28 +1354,36 @@ void maDatabaseStart(void)
     if(!utInitialized()) {
         utStart();
     }
-    maRootData.hash = 0xff596422;
-    maModuleID = utRegisterModule("ma", false, maHash(), 4, 30, 0, sizeof(struct maRootType_),
+    maRootData.hash = 0x8a244580;
+    maModuleID = utRegisterModule("ma", false, maHash(), 4, 34, 0, sizeof(struct maRootType_),
         &maRootData, maDatabaseStart, maDatabaseStop);
-    utRegisterClass("Maze", 4, &maRootData.usedMaze, &maRootData.allocatedMaze,
+    utRegisterClass("Maze", 8, &maRootData.usedMaze, &maRootData.allocatedMaze,
         &maRootData.firstFreeMaze, 0, 4, allocMaze, destroyMaze);
     utRegisterField("FirstRoom", &maMazes.FirstRoom, sizeof(maRoom), UT_POINTER, "Room");
     utRegisterField("LastRoom", &maMazes.LastRoom, sizeof(maRoom), UT_POINTER, "Room");
+    utRegisterField("RoomTableIndex_", &maMazes.RoomTableIndex_, sizeof(uint32), UT_UINT, NULL);
+    utSetFieldHidden();
+    utRegisterField("NumRoomTable", &maMazes.NumRoomTable, sizeof(uint32), UT_UINT, NULL);
+    utSetFieldHidden();
+    utRegisterField("RoomTable", &maMazes.RoomTable, sizeof(maRoom), UT_POINTER, "Room");
+    utRegisterArray(&maRootData.usedMazeRoomTable, &maRootData.allocatedMazeRoomTable,
+        getMazeRoomTables, allocMazeRoomTables, maCompactMazeRoomTables);
+    utRegisterField("NumRoom", &maMazes.NumRoom, sizeof(uint32), UT_UINT, NULL);
     utRegisterField("StartRoom", &maMazes.StartRoom, sizeof(maRoom), UT_POINTER, "Room");
     utRegisterField("FinishRoom", &maMazes.FinishRoom, sizeof(maRoom), UT_POINTER, "Room");
     utRegisterClass("Room", 9, &maRootData.usedRoom, &maRootData.allocatedRoom,
-        &maRootData.firstFreeRoom, 6, 4, allocRoom, destroyRoom);
-    utRegisterField("Start", &maRooms.Start, sizeof(uint8), UT_BOOL, NULL);
-    utRegisterField("Finish", &maRooms.Finish, sizeof(uint8), UT_BOOL, NULL);
+        &maRootData.firstFreeRoom, 8, 4, allocRoom, destroyRoom);
+    utRegisterField("Sym", &maRooms.Sym, sizeof(utSym), UT_SYM, NULL);
     utRegisterField("Maze", &maRooms.Maze, sizeof(maMaze), UT_POINTER, "Maze");
     utRegisterField("NextMazeRoom", &maRooms.NextMazeRoom, sizeof(maRoom), UT_POINTER, "Room");
     utRegisterField("PrevMazeRoom", &maRooms.PrevMazeRoom, sizeof(maRoom), UT_POINTER, "Room");
+    utRegisterField("NextTableMazeRoom", &maRooms.NextTableMazeRoom, sizeof(maRoom), UT_POINTER, "Room");
     utRegisterField("FirstOutDoor", &maRooms.FirstOutDoor, sizeof(maDoor), UT_POINTER, "Door");
     utRegisterField("LastOutDoor", &maRooms.LastOutDoor, sizeof(maDoor), UT_POINTER, "Door");
     utRegisterField("FirstInDoor", &maRooms.FirstInDoor, sizeof(maDoor), UT_POINTER, "Door");
     utRegisterField("LastInDoor", &maRooms.LastInDoor, sizeof(maDoor), UT_POINTER, "Door");
     utRegisterClass("Door", 10, &maRootData.usedDoor, &maRootData.allocatedDoor,
-        &maRootData.firstFreeDoor, 15, 4, allocDoor, destroyDoor);
+        &maRootData.firstFreeDoor, 19, 4, allocDoor, destroyDoor);
     utRegisterField("Explored", &maDoors.Explored, sizeof(uint8), UT_BOOL, NULL);
     utRegisterField("Label", &maDoors.Label, sizeof(uint64), UT_UINT, NULL);
     utRegisterField("FromRoom", &maDoors.FromRoom, sizeof(maRoom), UT_POINTER, "Room");
@@ -1040,7 +1395,7 @@ void maDatabaseStart(void)
     utRegisterField("FirstPath", &maDoors.FirstPath, sizeof(maPath), UT_POINTER, "Path");
     utRegisterField("LastPath", &maDoors.LastPath, sizeof(maPath), UT_POINTER, "Path");
     utRegisterClass("Path", 7, &maRootData.usedPath, &maRootData.allocatedPath,
-        &maRootData.firstFreePath, 24, 4, allocPath, destroyPath);
+        &maRootData.firstFreePath, 28, 4, allocPath, destroyPath);
     utRegisterField("Label", &maPaths.Label, sizeof(uint64), UT_UINT, NULL);
     utRegisterField("NextPath", &maPaths.NextPath, sizeof(maPath), UT_POINTER, "Path");
     utRegisterField("PrevPath", &maPaths.PrevPath, sizeof(maPath), UT_POINTER, "Path");

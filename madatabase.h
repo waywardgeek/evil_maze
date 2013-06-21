@@ -56,6 +56,7 @@ struct maRootType_ {
     uint32 hash; /* This depends only on the structure of the database */
     maMaze firstFreeMaze;
     uint32 usedMaze, allocatedMaze;
+    uint32 usedMazeRoomTable, allocatedMazeRoomTable, freeMazeRoomTable;
     maRoom firstFreeRoom;
     uint32 usedRoom, allocatedRoom;
     maDoor firstFreeDoor;
@@ -72,6 +73,12 @@ utInlineC uint32 maUsedMaze(void) {return maRootData.usedMaze;}
 utInlineC uint32 maAllocatedMaze(void) {return maRootData.allocatedMaze;}
 utInlineC void maSetUsedMaze(uint32 value) {maRootData.usedMaze = value;}
 utInlineC void maSetAllocatedMaze(uint32 value) {maRootData.allocatedMaze = value;}
+utInlineC uint32 maUsedMazeRoomTable(void) {return maRootData.usedMazeRoomTable;}
+utInlineC uint32 maAllocatedMazeRoomTable(void) {return maRootData.allocatedMazeRoomTable;}
+utInlineC uint32 maFreeMazeRoomTable(void) {return maRootData.freeMazeRoomTable;}
+utInlineC void maSetUsedMazeRoomTable(uint32 value) {maRootData.usedMazeRoomTable = value;}
+utInlineC void maSetAllocatedMazeRoomTable(uint32 value) {maRootData.allocatedMazeRoomTable = value;}
+utInlineC void maSetFreeMazeRoomTable(int32 value) {maRootData.freeMazeRoomTable = value;}
 utInlineC maRoom maFirstFreeRoom(void) {return maRootData.firstFreeRoom;}
 utInlineC void maSetFirstFreeRoom(maRoom value) {maRootData.firstFreeRoom = (value);}
 utInlineC uint32 maUsedRoom(void) {return maRootData.usedRoom;}
@@ -147,6 +154,10 @@ utInlineC maPath maIndex2Path(uint32 xPath) {return xPath;}
 struct maMazeFields {
     maRoom *FirstRoom;
     maRoom *LastRoom;
+    uint32 *RoomTableIndex_;
+    uint32 *NumRoomTable;
+    maRoom *RoomTable;
+    uint32 *NumRoom;
     maRoom *StartRoom;
     maRoom *FinishRoom;
 };
@@ -154,10 +165,34 @@ extern struct maMazeFields maMazes;
 
 void maMazeAllocMore(void);
 void maMazeCopyProps(maMaze maOldMaze, maMaze maNewMaze);
+void maMazeAllocRoomTables(maMaze Maze, uint32 numRoomTables);
+void maMazeResizeRoomTables(maMaze Maze, uint32 numRoomTables);
+void maMazeFreeRoomTables(maMaze Maze);
+void maCompactMazeRoomTables(void);
 utInlineC maRoom maMazeGetFirstRoom(maMaze Maze) {return maMazes.FirstRoom[maMaze2ValidIndex(Maze)];}
 utInlineC void maMazeSetFirstRoom(maMaze Maze, maRoom value) {maMazes.FirstRoom[maMaze2ValidIndex(Maze)] = value;}
 utInlineC maRoom maMazeGetLastRoom(maMaze Maze) {return maMazes.LastRoom[maMaze2ValidIndex(Maze)];}
 utInlineC void maMazeSetLastRoom(maMaze Maze, maRoom value) {maMazes.LastRoom[maMaze2ValidIndex(Maze)] = value;}
+utInlineC uint32 maMazeGetRoomTableIndex_(maMaze Maze) {return maMazes.RoomTableIndex_[maMaze2ValidIndex(Maze)];}
+utInlineC void maMazeSetRoomTableIndex_(maMaze Maze, uint32 value) {maMazes.RoomTableIndex_[maMaze2ValidIndex(Maze)] = value;}
+utInlineC uint32 maMazeGetNumRoomTable(maMaze Maze) {return maMazes.NumRoomTable[maMaze2ValidIndex(Maze)];}
+utInlineC void maMazeSetNumRoomTable(maMaze Maze, uint32 value) {maMazes.NumRoomTable[maMaze2ValidIndex(Maze)] = value;}
+#if defined(DD_DEBUG)
+utInlineC uint32 maMazeCheckRoomTableIndex(maMaze Maze, uint32 x) {utAssert(x < maMazeGetNumRoomTable(Maze)); return x;}
+#else
+utInlineC uint32 maMazeCheckRoomTableIndex(maMaze Maze, uint32 x) {return x;}
+#endif
+utInlineC maRoom maMazeGetiRoomTable(maMaze Maze, uint32 x) {return maMazes.RoomTable[
+    maMazeGetRoomTableIndex_(Maze) + maMazeCheckRoomTableIndex(Maze, x)];}
+utInlineC maRoom *maMazeGetRoomTable(maMaze Maze) {return maMazes.RoomTable + maMazeGetRoomTableIndex_(Maze);}
+#define maMazeGetRoomTables maMazeGetRoomTable
+utInlineC void maMazeSetRoomTable(maMaze Maze, maRoom *valuePtr, uint32 numRoomTable) {
+    maMazeResizeRoomTables(Maze, numRoomTable);
+    memcpy(maMazeGetRoomTables(Maze), valuePtr, numRoomTable*sizeof(maRoom));}
+utInlineC void maMazeSetiRoomTable(maMaze Maze, uint32 x, maRoom value) {
+    maMazes.RoomTable[maMazeGetRoomTableIndex_(Maze) + maMazeCheckRoomTableIndex(Maze, (x))] = value;}
+utInlineC uint32 maMazeGetNumRoom(maMaze Maze) {return maMazes.NumRoom[maMaze2ValidIndex(Maze)];}
+utInlineC void maMazeSetNumRoom(maMaze Maze, uint32 value) {maMazes.NumRoom[maMaze2ValidIndex(Maze)] = value;}
 utInlineC maRoom maMazeGetStartRoom(maMaze Maze) {return maMazes.StartRoom[maMaze2ValidIndex(Maze)];}
 utInlineC void maMazeSetStartRoom(maMaze Maze, maRoom value) {maMazes.StartRoom[maMaze2ValidIndex(Maze)] = value;}
 utInlineC maRoom maMazeGetFinishRoom(maMaze Maze) {return maMazes.FinishRoom[maMaze2ValidIndex(Maze)];}
@@ -170,6 +205,7 @@ utInlineC maMaze maMazeNextFree(maMaze Maze) {return ((maMaze *)(void *)(maMazes
 utInlineC void maMazeSetNextFree(maMaze Maze, maMaze value) {
     ((maMaze *)(void *)(maMazes.FirstRoom))[maMaze2ValidIndex(Maze)] = value;}
 utInlineC void maMazeFree(maMaze Maze) {
+    maMazeFreeRoomTables(Maze);
     maMazeSetNextFree(Maze, maRootData.firstFreeMaze);
     maSetFirstFreeMaze(Maze);}
 void maMazeDestroy(maMaze Maze);
@@ -190,6 +226,10 @@ utInlineC maMaze maMazeAlloc(void) {
     maMaze Maze = maMazeAllocRaw();
     maMazeSetFirstRoom(Maze, maRoomNull);
     maMazeSetLastRoom(Maze, maRoomNull);
+    maMazeSetRoomTableIndex_(Maze, 0);
+    maMazeSetNumRoomTable(Maze, 0);
+    maMazeSetNumRoomTable(Maze, 0);
+    maMazeSetNumRoom(Maze, 0);
     maMazeSetStartRoom(Maze, maRoomNull);
     maMazeSetFinishRoom(Maze, maRoomNull);
     if(maMazeConstructorCallback != NULL) {
@@ -201,11 +241,11 @@ utInlineC maMaze maMazeAlloc(void) {
   Fields for class Room.
 ----------------------------------------------------------------------------------------*/
 struct maRoomFields {
-    uint8 *Start;
-    uint8 *Finish;
+    utSym *Sym;
     maMaze *Maze;
     maRoom *NextMazeRoom;
     maRoom *PrevMazeRoom;
+    maRoom *NextTableMazeRoom;
     maDoor *FirstOutDoor;
     maDoor *LastOutDoor;
     maDoor *FirstInDoor;
@@ -215,16 +255,16 @@ extern struct maRoomFields maRooms;
 
 void maRoomAllocMore(void);
 void maRoomCopyProps(maRoom maOldRoom, maRoom maNewRoom);
-utInlineC uint8 maRoomStart(maRoom Room) {return maRooms.Start[maRoom2ValidIndex(Room)];}
-utInlineC void maRoomSetStart(maRoom Room, uint8 value) {maRooms.Start[maRoom2ValidIndex(Room)] = value;}
-utInlineC uint8 maRoomFinish(maRoom Room) {return maRooms.Finish[maRoom2ValidIndex(Room)];}
-utInlineC void maRoomSetFinish(maRoom Room, uint8 value) {maRooms.Finish[maRoom2ValidIndex(Room)] = value;}
+utInlineC utSym maRoomGetSym(maRoom Room) {return maRooms.Sym[maRoom2ValidIndex(Room)];}
+utInlineC void maRoomSetSym(maRoom Room, utSym value) {maRooms.Sym[maRoom2ValidIndex(Room)] = value;}
 utInlineC maMaze maRoomGetMaze(maRoom Room) {return maRooms.Maze[maRoom2ValidIndex(Room)];}
 utInlineC void maRoomSetMaze(maRoom Room, maMaze value) {maRooms.Maze[maRoom2ValidIndex(Room)] = value;}
 utInlineC maRoom maRoomGetNextMazeRoom(maRoom Room) {return maRooms.NextMazeRoom[maRoom2ValidIndex(Room)];}
 utInlineC void maRoomSetNextMazeRoom(maRoom Room, maRoom value) {maRooms.NextMazeRoom[maRoom2ValidIndex(Room)] = value;}
 utInlineC maRoom maRoomGetPrevMazeRoom(maRoom Room) {return maRooms.PrevMazeRoom[maRoom2ValidIndex(Room)];}
 utInlineC void maRoomSetPrevMazeRoom(maRoom Room, maRoom value) {maRooms.PrevMazeRoom[maRoom2ValidIndex(Room)] = value;}
+utInlineC maRoom maRoomGetNextTableMazeRoom(maRoom Room) {return maRooms.NextTableMazeRoom[maRoom2ValidIndex(Room)];}
+utInlineC void maRoomSetNextTableMazeRoom(maRoom Room, maRoom value) {maRooms.NextTableMazeRoom[maRoom2ValidIndex(Room)] = value;}
 utInlineC maDoor maRoomGetFirstOutDoor(maRoom Room) {return maRooms.FirstOutDoor[maRoom2ValidIndex(Room)];}
 utInlineC void maRoomSetFirstOutDoor(maRoom Room, maDoor value) {maRooms.FirstOutDoor[maRoom2ValidIndex(Room)] = value;}
 utInlineC maDoor maRoomGetLastOutDoor(maRoom Room) {return maRooms.LastOutDoor[maRoom2ValidIndex(Room)];}
@@ -237,9 +277,9 @@ utInlineC void maRoomSetConstructorCallback(void(*func)(maRoom)) {maRoomConstruc
 utInlineC maRoomCallbackType maRoomGetConstructorCallback(void) {return maRoomConstructorCallback;}
 utInlineC void maRoomSetDestructorCallback(void(*func)(maRoom)) {maRoomDestructorCallback = func;}
 utInlineC maRoomCallbackType maRoomGetDestructorCallback(void) {return maRoomDestructorCallback;}
-utInlineC maRoom maRoomNextFree(maRoom Room) {return ((maRoom *)(void *)(maRooms.Maze))[maRoom2ValidIndex(Room)];}
+utInlineC maRoom maRoomNextFree(maRoom Room) {return ((maRoom *)(void *)(maRooms.Sym))[maRoom2ValidIndex(Room)];}
 utInlineC void maRoomSetNextFree(maRoom Room, maRoom value) {
-    ((maRoom *)(void *)(maRooms.Maze))[maRoom2ValidIndex(Room)] = value;}
+    ((maRoom *)(void *)(maRooms.Sym))[maRoom2ValidIndex(Room)] = value;}
 utInlineC void maRoomFree(maRoom Room) {
     maRoomSetNextFree(Room, maRootData.firstFreeRoom);
     maSetFirstFreeRoom(Room);}
@@ -259,11 +299,11 @@ utInlineC maRoom maRoomAllocRaw(void) {
     return Room;}
 utInlineC maRoom maRoomAlloc(void) {
     maRoom Room = maRoomAllocRaw();
-    maRoomSetStart(Room, 0);
-    maRoomSetFinish(Room, 0);
+    maRoomSetSym(Room, utSymNull);
     maRoomSetMaze(Room, maMazeNull);
     maRoomSetNextMazeRoom(Room, maRoomNull);
     maRoomSetPrevMazeRoom(Room, maRoomNull);
+    maRoomSetNextTableMazeRoom(Room, maRoomNull);
     maRoomSetFirstOutDoor(Room, maDoorNull);
     maRoomSetLastOutDoor(Room, maDoorNull);
     maRoomSetFirstInDoor(Room, maDoorNull);
@@ -424,6 +464,9 @@ utInlineC maPath maPathAlloc(void) {
 /*----------------------------------------------------------------------------------------
   Relationship macros between classes.
 ----------------------------------------------------------------------------------------*/
+maRoom maMazeFindRoom(maMaze Maze, utSym Sym);
+void maMazeRenameRoom(maMaze Maze, maRoom _Room, utSym sym);
+utInlineC char *maRoomGetName(maRoom Room) {return utSymGetName(maRoomGetSym(Room));}
 #define maForeachMazeRoom(pVar, cVar) \
     for(cVar = maMazeGetFirstRoom(pVar); cVar != maRoomNull; \
         cVar = maRoomGetNextMazeRoom(cVar))

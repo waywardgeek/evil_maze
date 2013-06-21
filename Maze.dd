@@ -3,8 +3,6 @@ module Maze ma
 class Maze
 
 class Room
-    bool start
-    bool finish
 
 class Door
     bool explored
@@ -16,7 +14,7 @@ class Path
     Path prevPath
     bool mostRecent
 
-relationship Maze Room doubly_linked mandatory
+relationship Maze Room hashed mandatory
 relationship Maze Room:start child_only
 relationship Maze Room:finish child_only
 relationship Room:from Door:out doubly_linked mandatory

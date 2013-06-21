@@ -63,15 +63,11 @@ quadratic in terms of the size of the maze.
 
 ###Improvements
 
-Various improvements are possible, but I'd like to keep this algorithm simple.
-For one thing, we don't have to build loops when we don't discover any rooms
-without paths that have unexplored doors.  Also, we could combine creating a
-loop and splicing paths in one transition of the loop instead of two whenever we
-create a loop in a room that already has a path.  Another improvement would be
-doing a better job of detecting when we have to reset our startLabel, as we
-don't have to do it every time we delete a loop or splice paths together.
-However, all of these improvements provide only a constant factor speedup, while
-complicating the code.
-
-The basic version of the algorithm is in maze.c.  A version with some of these
-speed improvements is in fastmaze.c
+Various improvements are possible.  For one thing, we don't have to build loops
+when we don't discover any rooms without paths that have unexplored doors.
+Also, we could combine creating a loop and splicing paths in one transition of
+the loop instead of two whenever we create a loop in a room that already has a
+path.  Another improvement would be doing a better job of detecting when we have
+to reset our startLabel, as we don't have to do it every time we delete a loop
+or splice paths together.  Some of this is done in maze.c, for about 2X speed
+improvement.
