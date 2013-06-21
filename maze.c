@@ -45,11 +45,12 @@ maPath maPathCreate(maDoor door, uint64 label, maPath prevPath, maPath nextPath)
     return path;
 }
 
-// Build a random maze.
-maMaze buildMaze(int numRooms, int averageDoors, int seed)
+// Build a random maze, unless uniform is true, in which case build a constant number of
+// doors in each room leading back to the start.
+maMaze buildMaze(int numRooms, int averageDoors, int seed, bool uniform)
 {
     maMaze maze = maMazeAlloc();
-    int i;
+    uint32 i, j;
     maRoom *rooms = utNewA(maRoom, numRooms);
     maRoom start, finish;
     maRoom from, to;
@@ -65,17 +66,25 @@ maMaze buildMaze(int numRooms, int averageDoors, int seed)
     }
     finish = rooms[numRooms - 1];
     maRoomSetFinish(finish, true);
-    numDoors -= numRooms - 1;
-    // Now add remaining doors randomly, but not from finish.
-    while(numDoors != 0) {
-        from = rooms[rand() % (numRooms - 1)];
-        to = rooms[rand() % (numRooms - 1)];
-        if(maRoom2Index(from) < maRoom2Index(to)) {
-            maDoorCreate(to, from);
-        } else {
-            maDoorCreate(from, to);
+    if(!uniform) {
+        numDoors -= numRooms - 1;
+        // Now add remaining doors randomly, but not from finish.
+        while(numDoors != 0) {
+            from = rooms[rand() % (numRooms - 1)];
+            to = rooms[rand() % (numRooms - 1)];
+            if(maRoom2Index(from) < maRoom2Index(to)) {
+                maDoorCreate(to, from);
+            } else {
+                maDoorCreate(from, to);
+            }
+            numDoors--;
         }
-        numDoors--;
+    } else {
+        for(i = 0; i < numRooms - 1; i++) {
+            for(j = 1; j < averageDoors; j++) {
+                maDoorCreate(rooms[i], start);
+            }
+        }
     }
     maMazeSetStartRoom(maze, start);
     maMazeSetFinishRoom(maze, finish);
@@ -392,10 +401,15 @@ int main(int argc, char **argv) {
     int xArg = 1;
     maMaze maze;
     bool useRandomMouse = false;
+    bool uniformMaze = false;
 
-    if(argc > 4 && !strcmp(argv[xArg], "-r")) {
+    while(xArg < argc && *(argv[xArg]) == '-') {
+        if(!strcmp(argv[xArg], "-r")) {
+            useRandomMouse = true;
+        } else if(!strcmp(argv[xArg], "-u")) {
+            uniformMaze = true;
+        }
         xArg++;
-        useRandomMouse = true;
     }
     if(argc - xArg != 3) {
         printf("Usage: maze [-r] numRooms averageDoors seed\n"
@@ -407,7 +421,8 @@ int main(int argc, char **argv) {
     seed = atoi(argv[xArg++]);
     utStart();
     maDatabaseStart();
-    maze = buildMaze(numRooms, averageDoors, seed);
+    srand(seed ^ 0xdeadbeef);
+    maze = buildMaze(numRooms, averageDoors, seed, uniformMaze);
     printMaze(maze);
     if(useRandomMouse) {
         solveMazeRandomly(maze);
