@@ -19,25 +19,28 @@ get us out in O(n^2) time without a map?  Yes.  This algorithm solves the same
 ![Image of evil maze](img/maze.jpg?raw=true "Evil Maze")
 Evil Maze Example
 
+All of the code and documentation in this evil_maze project were created by me,
+Bill Cox, in 2013.  I place all of it into the public domain and disclaim any
+patent rights to the algorithms.
+
 ###Algorithm
 
 1. We keep a door transition count that we increment every time we are about to
    go through a door.  We write this count on the door when we go through.
 2. Every time we explore through a series of unexplored rooms, and arrive at a
-   room we've seen before (which we can see from the door labels), we create a new
-   "loop" consisting of the chain of newly explored rooms and the most recently
-   visited rooms leading from the loop point back to itself.  Just follow the chain
-   of largest numbered doors (without incrementing our counter or labeling doors)
-   drawing an arrow from the door you entered through to the door you leave
-   through, and label the arrow with the counter value.  Don't increment the
-   counter while creating the loop, so the entire loop gets the same label.
+   room we've seen before (which we can see from the door labels), we create a
+   new "loop".  Just follow the chain of largest numbered doors (without
+   incrementing our counter or labeling doors) drawing an arrow from the door
+   you entered from to the door you leave through, and label the arrow with the
+   counter value.  Don't increment the counter while creating the loop, so the
+   entire loop gets the same label.
 3. While the current room has no unexplored doors, we first remember the current
    count value, and then do the following:
-    - Merge any new loops seen in the room into old ones.  This does require
-      that we traverse the newer loop, changing it's labels to the older loop
-      label.  Also, we'll need to redraw the arrows so that the old path feeds
-      into the new one and vise versa.  If we merged any loops, update the
-      remembered count value to the current count.
+    - Merge any new loops seen in the room into old ones.  This requires that we
+      traverse the newer loop, changing it's labels to the older loop label.
+      Also, we'll need to redraw the arrows so that the old path feeds into the
+      new one and vise versa.  If we merged any loops, update the remembered
+      count value to the current count.
     - If there is an unexplored door, explore through it.  Go back to step 2.
     - If the room has a door label larger than the remembered count, we must
       have traversed a whole loop without finding any unexplored doors.  There
@@ -46,8 +49,8 @@ Evil Maze Example
       deleting the loop.  After deleting it, draw an arrow from the door that
       used to lead into the loop to the door the loop used to go through when
       we'd finished the loop.  Since the same path can go through the same door
-      multiple times, we need to mark the one used most recently when this
-      occurs, so we know which one to delete later.
+      multiple times, we need to mark the one we use when we go through a door
+      so we know which one to delete later.
 
 ###Efficiency
 
@@ -62,10 +65,13 @@ quadratic in terms of the size of the maze.
 
 Various improvements are possible, but I'd like to keep this algorithm simple.
 For one thing, we don't have to build loops when we don't discover any rooms
-without paths that have unexplored doors.  It is a significant complication,
-however.  Also, we could combine creating a loop and splicing paths in one
-transition of the loop instead of two.  Another improvement would be doing a
-better job of detecting when we have to reset our startLabel, as we don't have
-to do it every time we delete a loop or splice paths together.  However, all of
-these improvements provide only a constant factor speedup, while complicating
-the code.
+without paths that have unexplored doors.  Also, we could combine creating a
+loop and splicing paths in one transition of the loop instead of two whenever we
+create a loop in a room that already has a path.  Another improvement would be
+doing a better job of detecting when we have to reset our startLabel, as we
+don't have to do it every time we delete a loop or splice paths together.
+However, all of these improvements provide only a constant factor speedup, while
+complicating the code.
+
+The basic version of the algorithm is in maze.c.  A version with some of these
+speed improvements is in fastmaze.c

@@ -163,46 +163,6 @@ static maPath findMostRecentPath(maDoor door)
     return maPathNull;
 }
 
-// Follow the largest labeled doors in a loop back to this door, building path objects as
-// we go.
-static void buildLoop(maRoom startRoom, uint64 label)
-{
-    maRoom room = startRoom;
-    maDoor door;
-    maPath prevPath = maPathNull;
-    maPath path, firstPath = maPathNull;
-
-    do {
-        door = findLargestLabelDoor(room);
-        path = maPathCreate(door, label, prevPath, maPathNull);
-        printf("Building path %llu element %u through door %u in room %u\n", label,
-            maPath2Index(path), maDoor2Index(door), maRoom2Index(room));
-        if(firstPath == maPathNull) {
-            firstPath = path;
-        }
-        prevPath = path;
-        room = maDoorGetToRoom(door);
-    } while(room != startRoom);
-    // Now close the loop.
-    maPathSetNextPath(path, firstPath);
-    maPathSetPrevPath(firstPath, path);
-}
-
-// Just return the first path we find leaving the room.
-static maPath findPathInRoom(maRoom room)
-{
-    maDoor door;
-    maPath path;
-
-    maForeachRoomOutDoor(room, door) {
-        path = maDoorGetFirstPath(door);
-        if(path != maPathNull) {
-            return path;
-        }
-    } maEndRoomOutDoor;
-    return maPathNull;
-}
-
 // Find the path in the room with the smallests label.
 static maPath findOldestPathInRoom(maRoom room)
 {
@@ -219,6 +179,58 @@ static maPath findOldestPathInRoom(maRoom room)
         } maEndDoorPath;
     } maEndRoomOutDoor;
     return oldestPath;
+}
+
+// Follow the largest labeled doors in a loop back to this door, building path objects as
+// we go.
+static void buildLoop(maRoom startRoom, uint64 label)
+{
+    maRoom room = startRoom;
+    maDoor door;
+    maPath prevPath = maPathNull;
+    maPath path, firstPath = maPathNull;
+    maPath oldPath = findOldestPathInRoom(startRoom);
+
+    if(oldPath != maPathNull) {
+        label = maPathGetLabel(oldPath);
+    }
+    do {
+        door = findLargestLabelDoor(room);
+        path = maPathCreate(door, label, prevPath, maPathNull);
+        printf("Building path %llu element %u through door %u in room %u\n", label,
+            maPath2Index(path), maDoor2Index(door), maRoom2Index(room));
+        if(firstPath == maPathNull) {
+            firstPath = path;
+        }
+        prevPath = path;
+        room = maDoorGetToRoom(door);
+    } while(room != startRoom);
+    // Now close the loop.
+    if(oldPath == maPathNull) {
+        maPathSetNextPath(path, firstPath);
+        maPathSetPrevPath(firstPath, path);
+    } else {
+        prevPath = maPathGetPrevPath(oldPath);
+        maPathSetNextPath(prevPath, firstPath);
+        maPathSetPrevPath(firstPath, prevPath);
+        maPathSetNextPath(path, oldPath);
+        maPathSetPrevPath(oldPath, path);
+    }
+}
+
+// Just return the first path we find leaving the room.
+static maPath findPathInRoom(maRoom room)
+{
+    maDoor door;
+    maPath path;
+
+    maForeachRoomOutDoor(room, door) {
+        path = maDoorGetFirstPath(door);
+        if(path != maPathNull) {
+            return path;
+        }
+    } maEndRoomOutDoor;
+    return maPathNull;
 }
 
 // Just relable the entire path with the new label.
@@ -281,6 +293,8 @@ void solveMaze(maMaze maze)
 
     while(true) {
         // We're in a room with an unexplored door.  Explore through it.
+        path = findPathInRoom(currentRoom);
+        startLabel = count;
         do {
             door = findUnexploredDoor(currentRoom);
             count++;
@@ -296,8 +310,12 @@ void solveMaze(maMaze maze)
             }
             door = findLargestLabelDoor(currentRoom);
         } while(door == maDoorNull);
-        // We found an explored room.  Make a loop.
-        buildLoop(currentRoom, count);
+        if(count != startLabel + 1 || path == maPathNull ||
+                findPathInRoom(currentRoom) == maPathNull ||
+                maPathGetLabel(path) != maPathGetLabel(findPathInRoom(currentRoom))) {
+            // We found an explored room.  Make a loop.
+            buildLoop(currentRoom, count);
+        }
         // Now we're in a room with a path in it.  Follow a path until we find an
         // unexplored door.  Splice together different paths that we find, and delete
         // loops with no unexplored doors.
@@ -330,50 +348,6 @@ void solveMaze(maMaze maze)
     }
 }
 
-// Just count the number of outgoing doors in the room.
-static uint32 countRoomOutDoors(maRoom room)
-{
-    maDoor door;
-    int xDoor = 0;
-
-    maForeachRoomOutDoor(room, door) {
-        xDoor++;
-    } maEndRoomOutDoor;
-    return xDoor;
-}
-
-// Pick a random one-way door leaving the room.
-static maDoor pickRandomDoor(maRoom room)
-{
-    maDoor doors[countRoomOutDoors(room)];
-    maDoor door;
-    int xDoor = 0;
-
-    maForeachRoomOutDoor(room, door) {
-        doors[xDoor++] = door;
-    } maEndRoomOutDoor;
-    return doors[rand() % xDoor];
-}
-
-// This is the "Random mouse" solution, which I normally call the "run screaming"
-// algorithm, since my daughter when she was young would have done exactly that to get out
-// of the maze.
-static void solveMazeRandomly(maMaze maze)
-{
-    maRoom room = maMazeGetStartRoom(maze);
-    maRoom finish = maMazeGetFinishRoom(maze);
-    maDoor door;
-    uint64 count = 0;
-
-    while(room != finish) {
-        door = pickRandomDoor(room);
-        room = maDoorGetToRoom(door);
-        count++;
-        printf("%llu went through door %u to room %u\n", count, maDoor2Index(door),
-            maRoom2Index(room));
-    }
-}
-
 // Dump the room
 static void printRoom(maRoom room)
 {
@@ -400,21 +374,17 @@ int main(int argc, char **argv) {
     int numRooms, averageDoors, seed;
     int xArg = 1;
     maMaze maze;
-    bool useRandomMouse = false;
     bool uniformMaze = false;
 
     while(xArg < argc && *(argv[xArg]) == '-') {
-        if(!strcmp(argv[xArg], "-r")) {
-            useRandomMouse = true;
-        } else if(!strcmp(argv[xArg], "-u")) {
+        if(!strcmp(argv[xArg], "-u")) {
             uniformMaze = true;
         }
         xArg++;
     }
     if(argc - xArg != 3) {
-        printf("Usage: maze [-r] [-u] numRooms averageDoors seed\n"
-            "    With the -r flag, use the random mouse algorithm.\n"
-            "    With the -u flag, build a uniform evil maze.\n");
+        printf("Usage: maze [-r] numRooms averageDoors seed\n"
+            "    With the -r flag, use the random mouse algorithm.\n");
         return 1;
     }
     numRooms = atoi(argv[xArg++]);
@@ -425,11 +395,7 @@ int main(int argc, char **argv) {
     srand(seed ^ 0xdeadbeef);
     maze = buildMaze(numRooms, averageDoors, seed, uniformMaze);
     printMaze(maze);
-    if(useRandomMouse) {
-        solveMazeRandomly(maze);
-    } else {
-        solveMaze(maze);
-    }
+    solveMaze(maze);
     maDatabaseStop();
     utStop(false);
     return 0;
