@@ -7,14 +7,14 @@ between rooms can only be traversed in one direction.  Imagine you have an
 infinite crayon, and can write on walls floors and doors, but you have no paper
 to make a map.  Your job is to exit the maze in as little time as possible.  The
 "random mouse" algorithm will eventually get you out, just by picking doors at
-random and going as fast as you can.  However, it's runtime is exponential!
-Even with a map, evil mazes where most doors take you back towards the start and
-away from the finish require O(n^2) time to solve.  For a 21 room maze where
-every room has two doors, one leading toward the exit, and one leading back to
-the start, the random walk on average takes over 1,000,000 door transitions.
-So, is there an algorithm like the ones we use to solve regular mazes that will
-get us out in O(n^2) time without a map?  Yes.  This algorithm solves the same
-21 room maze in under 1,000 door transitions on average.
+random and going as fast as you can.  However, the runtime is exponential!  Even
+with a map, evil mazes where most doors take you back towards the start and away
+from the finish require O(n^2) time to solve.  For a 20 room maze where every
+room has two doors, one leading toward the exit, and one leading back to the
+start, the random walk on average takes over 1,000,000 door transitions.  So, is
+there an algorithm like the ones we use to solve regular mazes that will get us
+out in O(n^2) time without a map?  Yes.  This algorithm solves the same 20 room
+maze in under 500 door transitions on average.
 
 ![Image of evil maze](img/maze.jpg?raw=true "Evil Maze")
 Evil Maze Example
