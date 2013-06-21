@@ -1,8 +1,6 @@
-WaywardGeek's One Way Door Maze Algorithm
-=========================================
+##WaywardGeek's One Way Door Maze Algorithm
 
-Introduction
-------------
+###Introduction
 
 A difficult maze related problem is the one-way door maze, where every door
 between rooms can only be traversed in one direction.  Imagine you have an
@@ -18,8 +16,7 @@ So, is there an algorithm like the ones we use to solve regular mazes that will
 get us out in O(n^2) time without a map?  Yes.  This algorithm solves the same
 21 room maze in under 1,000 door transitions on average.
 
-Algorithm
----------
+###Algorithm
 
 1. We keep a door transition count that we increment every time we are about to
    go through a door.  We write this count on the door when we go through.
@@ -49,8 +46,7 @@ Algorithm
       multiple times, we need to mark the one used most recently when this
       occurs, so we know which one to delete later.
 
-Efficiency
-----------
+###Efficiency
 
 If there are D doors and N rooms, then there are at most D loops of at most N
 doors each, making the loop graph size O(N*D).  However, an unexplored door will
@@ -59,8 +55,8 @@ point the loop is deleted.  On average, a door will be found in O(N)
 transitions.  The expected runtime is then O(N*D), or more informally, it's
 quadratic in terms of the size of the maze.
 
-Improvements
-------------
+###Improvements
+
 Various improvements are possible, but I'd like to keep this algorithm simple.
 For one thing, we don't have to build loops when we don't discover any rooms
 without paths that have unexplored doors.  It is a significant complication,
