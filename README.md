@@ -16,8 +16,7 @@ So, is there an algorithm like the ones we use to solve regular mazes that will
 get us out in O(n^2) time without a map?  Yes.  This algorithm solves the same
 21 room maze in under 1,000 door transitions on average.
 
-![Image of evil maze](waywardgeek.github.com/evil_maze/img/maze.svg "Evil Maze")
-
+![Image of evil maze](img/maze.jpg "Evil Maze")
 
 ###Algorithm
 
