@@ -1,3 +1,9 @@
+WaywardGeek's One Way Door Maze Algorithm
+========================================-
+
+Introduction
+------------
+
 A difficult maze related problem is the one-way door maze, where every door
 between rooms can only be traversed in one direction.  Imagine you have an
 infinite crayon, and can write on walls floors and doors, but you have no paper
@@ -12,11 +18,12 @@ So, is there an algorithm like the ones we use to solve regular mazes that will
 get us out in O(n^2) time without a map?  Yes.  This algorithm solves the same
 21 room maze in under 1,000 door transitions on average.
 
-The algorithm works as follows:
+Algorithm
+---------
 
-1) We keep a door transition count that we increment every time we are about to
+1. We keep a door transition count that we increment every time we are about to
    go through a door.  We write this count on the door when we go through.
-2) Every time we explore through a series of unexplored rooms, and arrive at a
+2. Every time we explore through a series of unexplored rooms, and arrive at a
    room we've seen before (which we can see from the door labels), we create a new
    "loop" consisting of the chain of newly explored rooms and the most recently
    visited rooms leading from the loop point back to itself.  Just follow the chain
@@ -24,7 +31,7 @@ The algorithm works as follows:
    drawing an arrow from the door you entered through to the door you leave
    through, and label the arrow with the counter value.  Don't increment the
    counter while creating the loop, so the entire loop gets the same label.
-3) While the current room has no unexplored doors, we first remember the current
+3. While the current room has no unexplored doors, we first remember the current
    count value, and then do the following:
     - Merge any new loops seen in the room into old ones.  This does require
       that we traverse the newer loop, changing it's labels to the older loop
@@ -42,6 +49,9 @@ The algorithm works as follows:
       multiple times, we need to mark the one used most recently when this
       occurs, so we know which one to delete later.
 
+Efficiency
+----------
+
 If there are D doors and N rooms, then there are at most D loops of at most N
 doors each, making the loop graph size O(N*D).  However, an unexplored door will
 be found on each traversal of any of the loops until there are no more, at which
@@ -49,6 +59,8 @@ point the loop is deleted.  On average, a door will be found in O(N)
 transitions.  The expected runtime is then O(N*D), or more informally, it's
 quadratic in terms of the size of the maze.
 
+Improvements
+------------
 Various improvements are possible, but I'd like to keep this algorithm simple.
 For one thing, we don't have to build loops when we don't discover any rooms
 without paths that have unexplored doors.  It is a significant complication,
