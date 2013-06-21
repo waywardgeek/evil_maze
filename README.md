@@ -1,4 +1,4 @@
-##WaywardGeek's One Way Door Maze Algorithm
+##WaywardGeek's One-Way Door Maze Algorithm
 
 ###Introduction
 
@@ -15,6 +15,8 @@ the start, the random walk on average takes over 1,000,000 door transitions.
 So, is there an algorithm like the ones we use to solve regular mazes that will
 get us out in O(n^2) time without a map?  Yes.  This algorithm solves the same
 21 room maze in under 1,000 door transitions on average.
+
+![Image of evil maze](maze.svg "Evil Maze")
 
 ###Algorithm
 
