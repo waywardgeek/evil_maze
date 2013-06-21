@@ -84,8 +84,7 @@ maMaze buildMaze(int numRooms, int averageDoors, int seed)
 }
 
 // Find an unexplored door if one exists.
-static maDoor findUnexploredDoor(
-    maRoom room)
+static maDoor findUnexploredDoor(maRoom room)
 {
     maDoor door;
 
@@ -98,8 +97,7 @@ static maDoor findUnexploredDoor(
 }
 
 // Find the door with the largest label.
-static maDoor findLargestLabelDoor(
-    maRoom room)
+static maDoor findLargestLabelDoor(maRoom room)
 {
     maDoor door, largestDoor = maDoorNull;
     uint64 label, largestLabel = 0;
@@ -115,33 +113,50 @@ static maDoor findLargestLabelDoor(
 }
 
 // Delete the loop of labels so we wont follow them any more.
-static void deletePathLoop(
-    maPath stopPath)
+static void deletePathLoop(maPath startPath, maPath stopPath)
 {
-    maRoom startRoom = maDoorGetFromRoom(maPathGetDoor(stopPath));
-    maPath path = maPathGetPrevPath(stopPath);
-    maRoom room = maDoorGetFromRoom(maPathGetDoor(path));
-    maPath prevPath;
+    maPath prevPath = maPathGetPrevPath(startPath);
+    maPath path, nextPath;
 
-    while(room != startRoom) {
-        prevPath = maPathGetPrevPath(path);
-        printf("Deleting path element %u in R%u\n", maPath2Index(path), maRoom2Index(room));
+    for(path = startPath; path != stopPath; path = nextPath) {
+        nextPath = maPathGetNextPath(path);
+        printf("Deleting path %llu element %u in R%u\n", maPathGetLabel(path),
+            maPath2Index(path), maRoom2Index(maDoorGetFromRoom(maPathGetDoor(path))));
         maPathDestroy(path);
-        path = prevPath;
-        room = maDoorGetFromRoom(maPathGetDoor(path));
     }
-    prevPath = maPathGetPrevPath(path);
-    printf("Deleting path element %u in R%u\n", maPath2Index(path), maRoom2Index(room));
-    maPathDestroy(path);
     maPathSetPrevPath(stopPath, prevPath);
     maPathSetNextPath(prevPath, stopPath);
 }
 
+// Mark the path through the door as the one most recently used.  This is needed when we
+// we need to delete a path loop.
+static void markPathAsMostRecent(maPath path)
+{
+    maDoor door = maPathGetDoor(path);
+    maPath otherPath;
+
+    maForeachDoorPath(door, otherPath) {
+        maPathSetMostRecent(otherPath, false);
+    } maEndDoorPath;
+    maPathSetMostRecent(path, true);
+}
+
+// Find the most recently used path through the door.
+static maPath findMostRecentPath(maDoor door)
+{
+    maPath path;
+
+    maForeachDoorPath(door, path) {
+        if(maPathMostRecent(path)) {
+            return path;
+        }
+    } maEndDoorPath;
+    return maPathNull;
+}
+
 // Follow the largest labeled doors in a loop back to this door, building path objects as
 // we go.
-static void buildLoop(
-    maRoom startRoom,
-    uint64 label)
+static void buildLoop(maRoom startRoom, uint64 label)
 {
     maRoom room = startRoom;
     maDoor door;
@@ -151,7 +166,8 @@ static void buildLoop(
     do {
         door = findLargestLabelDoor(room);
         path = maPathCreate(door, label, prevPath, maPathNull);
-        printf("Building loop %llu path element %u\n", label, maPath2Index(path));
+        printf("Building path %llu element %u through door %u in room %u\n", label,
+            maPath2Index(path), maDoor2Index(door), maRoom2Index(room));
         if(firstPath == maPathNull) {
             firstPath = path;
         }
@@ -179,8 +195,7 @@ static maPath findPathInRoom(maRoom room)
 }
 
 // Find the path in the room with the smallests label.
-static maPath findOldestPathInRoom(
-    maRoom room)
+static maPath findOldestPathInRoom(maRoom room)
 {
     maDoor door;
     maPath path, oldestPath = maPathNull;
@@ -287,10 +302,11 @@ void solveMaze(maMaze maze)
         } utWhile(door == maDoorNull) {
             door = findLargestLabelDoor(currentRoom);
             if(maDoorGetLabel(door) > startLabel) {
-                // Leaves this path object intact
-                deletePathLoop(path);
+                // Leaves the current path object intact
+                deletePathLoop(findMostRecentPath(door), path);
                 startLabel = count;
             }
+            markPathAsMostRecent(path);
             door = maPathGetDoor(path);
             utAssert(maDoorGetFromRoom(door) == currentRoom);
             count++;
@@ -302,6 +318,50 @@ void solveMaze(maMaze maze)
             currentRoom = nextRoom;
             path = maPathGetNextPath(path);
         } utRepeat;
+    }
+}
+
+// Just count the number of outgoing doors in the room.
+static uint32 countRoomOutDoors(maRoom room)
+{
+    maDoor door;
+    int xDoor = 0;
+
+    maForeachRoomOutDoor(room, door) {
+        xDoor++;
+    } maEndRoomOutDoor;
+    return xDoor;
+}
+
+// Pick a random one-way door leaving the room.
+static maDoor pickRandomDoor(maRoom room)
+{
+    maDoor doors[countRoomOutDoors(room)];
+    maDoor door;
+    int xDoor = 0;
+
+    maForeachRoomOutDoor(room, door) {
+        doors[xDoor++] = door;
+    } maEndRoomOutDoor;
+    return doors[rand() % xDoor];
+}
+
+// This is the "Random mouse" solution, which I normally call the "run screaming"
+// algorithm, since my daughter when she was young would have done exactly that to get out
+// of the maze.
+static void solveMazeRandomly(maMaze maze)
+{
+    maRoom room = maMazeGetStartRoom(maze);
+    maRoom finish = maMazeGetFinishRoom(maze);
+    maDoor door;
+    uint64 count = 0;
+
+    while(room != finish) {
+        door = pickRandomDoor(room);
+        room = maDoorGetToRoom(door);
+        count++;
+        printf("%llu went through door %u to room %u\n", count, maDoor2Index(door),
+            maRoom2Index(room));
     }
 }
 
@@ -329,20 +389,31 @@ static void printMaze(maMaze maze)
 
 int main(int argc, char **argv) {
     int numRooms, averageDoors, seed;
+    int xArg = 1;
     maMaze maze;
+    bool useRandomMouse = false;
 
-    if(argc != 4) {
-        printf("Usage: maze numRooms averageDoors seed\n");
+    if(argc > 4 && !strcmp(argv[xArg], "-r")) {
+        xArg++;
+        useRandomMouse = true;
+    }
+    if(argc - xArg != 3) {
+        printf("Usage: maze [-r] numRooms averageDoors seed\n"
+            "    With the -r flag, use the random mouse algorithm.\n");
         return 1;
     }
-    numRooms = atoi(argv[1]);
-    averageDoors = atoi(argv[2]);
-    seed = atoi(argv[3]);
+    numRooms = atoi(argv[xArg++]);
+    averageDoors = atoi(argv[xArg++]);
+    seed = atoi(argv[xArg++]);
     utStart();
     maDatabaseStart();
     maze = buildMaze(numRooms, averageDoors, seed);
     printMaze(maze);
-    solveMaze(maze);
+    if(useRandomMouse) {
+        solveMazeRandomly(maze);
+    } else {
+        solveMaze(maze);
+    }
     maDatabaseStop();
     utStop(false);
     return 0;

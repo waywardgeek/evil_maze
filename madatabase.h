@@ -360,6 +360,7 @@ struct maPathFields {
     uint64 *Label;
     maPath *NextPath;
     maPath *PrevPath;
+    uint8 *MostRecent;
     maDoor *Door;
     maPath *NextDoorPath;
     maPath *PrevDoorPath;
@@ -374,6 +375,8 @@ utInlineC maPath maPathGetNextPath(maPath Path) {return maPaths.NextPath[maPath2
 utInlineC void maPathSetNextPath(maPath Path, maPath value) {maPaths.NextPath[maPath2ValidIndex(Path)] = value;}
 utInlineC maPath maPathGetPrevPath(maPath Path) {return maPaths.PrevPath[maPath2ValidIndex(Path)];}
 utInlineC void maPathSetPrevPath(maPath Path, maPath value) {maPaths.PrevPath[maPath2ValidIndex(Path)] = value;}
+utInlineC uint8 maPathMostRecent(maPath Path) {return maPaths.MostRecent[maPath2ValidIndex(Path)];}
+utInlineC void maPathSetMostRecent(maPath Path, uint8 value) {maPaths.MostRecent[maPath2ValidIndex(Path)] = value;}
 utInlineC maDoor maPathGetDoor(maPath Path) {return maPaths.Door[maPath2ValidIndex(Path)];}
 utInlineC void maPathSetDoor(maPath Path, maDoor value) {maPaths.Door[maPath2ValidIndex(Path)] = value;}
 utInlineC maPath maPathGetNextDoorPath(maPath Path) {return maPaths.NextDoorPath[maPath2ValidIndex(Path)];}
@@ -409,6 +412,7 @@ utInlineC maPath maPathAlloc(void) {
     maPathSetLabel(Path, 0);
     maPathSetNextPath(Path, maPathNull);
     maPathSetPrevPath(Path, maPathNull);
+    maPathSetMostRecent(Path, 0);
     maPathSetDoor(Path, maDoorNull);
     maPathSetNextDoorPath(Path, maPathNull);
     maPathSetPrevDoorPath(Path, maPathNull);

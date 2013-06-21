@@ -909,6 +909,7 @@ static void allocPaths(void)
     maPaths.Label = utNewAInitFirst(uint64, (maAllocatedPath()));
     maPaths.NextPath = utNewAInitFirst(maPath, (maAllocatedPath()));
     maPaths.PrevPath = utNewAInitFirst(maPath, (maAllocatedPath()));
+    maPaths.MostRecent = utNewAInitFirst(uint8, (maAllocatedPath()));
     maPaths.Door = utNewAInitFirst(maDoor, (maAllocatedPath()));
     maPaths.NextDoorPath = utNewAInitFirst(maPath, (maAllocatedPath()));
     maPaths.PrevDoorPath = utNewAInitFirst(maPath, (maAllocatedPath()));
@@ -923,6 +924,7 @@ static void reallocPaths(
     utResizeArray(maPaths.Label, (newSize));
     utResizeArray(maPaths.NextPath, (newSize));
     utResizeArray(maPaths.PrevPath, (newSize));
+    utResizeArray(maPaths.MostRecent, (newSize));
     utResizeArray(maPaths.Door, (newSize));
     utResizeArray(maPaths.NextDoorPath, (newSize));
     utResizeArray(maPaths.PrevDoorPath, (newSize));
@@ -945,6 +947,7 @@ void maPathCopyProps(
     maPath newPath)
 {
     maPathSetLabel(newPath, maPathGetLabel(oldPath));
+    maPathSetMostRecent(newPath, maPathMostRecent(oldPath));
 }
 
 #if defined(DD_DEBUG)
@@ -989,6 +992,7 @@ void maDatabaseStop(void)
     utFree(maPaths.Label);
     utFree(maPaths.NextPath);
     utFree(maPaths.PrevPath);
+    utFree(maPaths.MostRecent);
     utFree(maPaths.Door);
     utFree(maPaths.NextDoorPath);
     utFree(maPaths.PrevDoorPath);
@@ -1003,8 +1007,8 @@ void maDatabaseStart(void)
     if(!utInitialized()) {
         utStart();
     }
-    maRootData.hash = 0x28923b3a;
-    maModuleID = utRegisterModule("ma", false, maHash(), 4, 29, 0, sizeof(struct maRootType_),
+    maRootData.hash = 0xff596422;
+    maModuleID = utRegisterModule("ma", false, maHash(), 4, 30, 0, sizeof(struct maRootType_),
         &maRootData, maDatabaseStart, maDatabaseStop);
     utRegisterClass("Maze", 4, &maRootData.usedMaze, &maRootData.allocatedMaze,
         &maRootData.firstFreeMaze, 0, 4, allocMaze, destroyMaze);
@@ -1035,11 +1039,12 @@ void maDatabaseStart(void)
     utRegisterField("PrevRoomInDoor", &maDoors.PrevRoomInDoor, sizeof(maDoor), UT_POINTER, "Door");
     utRegisterField("FirstPath", &maDoors.FirstPath, sizeof(maPath), UT_POINTER, "Path");
     utRegisterField("LastPath", &maDoors.LastPath, sizeof(maPath), UT_POINTER, "Path");
-    utRegisterClass("Path", 6, &maRootData.usedPath, &maRootData.allocatedPath,
+    utRegisterClass("Path", 7, &maRootData.usedPath, &maRootData.allocatedPath,
         &maRootData.firstFreePath, 24, 4, allocPath, destroyPath);
     utRegisterField("Label", &maPaths.Label, sizeof(uint64), UT_UINT, NULL);
     utRegisterField("NextPath", &maPaths.NextPath, sizeof(maPath), UT_POINTER, "Path");
     utRegisterField("PrevPath", &maPaths.PrevPath, sizeof(maPath), UT_POINTER, "Path");
+    utRegisterField("MostRecent", &maPaths.MostRecent, sizeof(uint8), UT_BOOL, NULL);
     utRegisterField("Door", &maPaths.Door, sizeof(maDoor), UT_POINTER, "Door");
     utRegisterField("NextDoorPath", &maPaths.NextDoorPath, sizeof(maPath), UT_POINTER, "Path");
     utRegisterField("PrevDoorPath", &maPaths.PrevDoorPath, sizeof(maPath), UT_POINTER, "Path");

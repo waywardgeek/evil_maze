@@ -14,6 +14,7 @@ class Path
     uint64 label
     Path nextPath
     Path prevPath
+    bool mostRecent
 
 relationship Maze Room doubly_linked mandatory
 relationship Maze Room:start child_only

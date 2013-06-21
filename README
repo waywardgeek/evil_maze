@@ -34,7 +34,9 @@ The algorithm works as follows:
       another loop traversal.  Don't update the couter or label doors while
       deleting the loop.  After deleting it, draw an arrow from the door that
       used to lead into the loop to the door the loop used to go through when
-      we'd finished the loop.
+      we'd finished the loop.  Since the same path can go through the same door multiple
+      times, we need to mark the one used most recently when this occurs, so we know which
+      one to delete later.
 
 If there are D doors and N rooms, then there are at most D loops of at most N
 doors each, making the loop graph size O(N*D).  However, an unexplored door will
