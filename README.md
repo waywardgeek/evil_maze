@@ -1,6 +1,6 @@
-##WaywardGeek's One-Way Door Maze Algorithm
+## WaywardGeek's One-Way Door Maze Algorithm
 
-###Introduction
+### Introduction
 
 A difficult maze related problem is the one-way door maze, where every door
 between rooms can only be traversed in one direction.  Imagine you have an
@@ -23,7 +23,7 @@ All of the code and documentation in this evil_maze project were created by me,
 Bill Cox, in 2013.  I place all of it into the public domain and disclaim any
 patent rights to the algorithms.
 
-###Algorithm
+### Algorithm
 
 This approach embeds a "tour" of the maze, which is a loop that goes through
 every door, other than the exit, some more than once.  The tour can be
@@ -127,7 +127,7 @@ since there are a finite number of useless loops, we will find an unexplored
 door.  This guarentees the algorithm will complete by successfully finding the
 exit door.
 
-###Efficiency
+### Efficiency
 
 If there are D doors and N rooms, then there are at most D loops of at most N
 doors each, making the tour size O(N*D).  However, an unexplored door will
@@ -136,7 +136,7 @@ point the loop is deleted.  On average, a door will be found in O(N)
 transitions when following the tour.  The expected runtime is then O(N*D), or
 more informally, it's O(N^2) if N the "size" of the maze.
 
-###Improvements
+### Improvements
 
 Various improvements are possible.  For one thing, we don't have to build loops
 when we don't discover any rooms without paths that have unexplored doors.
