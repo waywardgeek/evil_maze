@@ -44,7 +44,7 @@ discovered.
 Suppose we are in a maze with N rooms and D one-way doors.  Once useless loops
 have been trimmed, the tour has at most D loops, and each loop traverses at
 most N doors.  This algorithm creates this tour in time proportional to the
-tour length, and thus has runtime order O(N * D), which is runtime-order optimal.
+tour length, and thus has runtime order O(N\*D), which is runtime-order optimal.
 
 A simple hack to enable us to do loop operations is to mark each door as we
 traverse it with a counter value.  Unless doing a loop operation, we overwrite
@@ -130,10 +130,10 @@ exit door.
 ### Efficiency
 
 If there are D doors and N rooms, then there are at most D loops of at most N
-doors each, making the tour size O(N*D).  However, an unexplored door will
+doors each, making the tour size O(N\*D).  However, an unexplored door will
 be found on each traversal of any of the loops until there are no more, at which
 point the loop is deleted.  On average, a door will be found in O(N)
-transitions when following the tour.  The expected runtime is then O(N*D), or
+transitions when following the tour.  The expected runtime is then O(N\*D), or
 more informally, it's O(N^2) if N the "size" of the maze.
 
 ### Improvements
