@@ -44,7 +44,7 @@ discovered.
 Suppose we are in a maze with N rooms and D one-way doors.  Once useless loops
 have been trimmed, the tour has at most D loops, and each loop traverses at
 most N doors.  This algorithm creates this tour in time proportional to the
-tour length, and thus has runtime order O(N*D), which is runtime-order optimal.
+tour length, and thus has runtime order O(N * D), which is runtime-order optimal.
 
 A simple hack to enable us to do loop operations is to mark each door as we
 traverse it with a counter value.  Unless doing a loop operation, we overwrite
@@ -63,8 +63,8 @@ We start by exploring through unexplored doors, labeling doors with the counter
 value as we go, incrementing the counter each time.  When we enter a room we've
 seen before, there are two cases:
 
-case 1) This room does not contain any part of the tour, just door labels
-case 2) The tour already goes through this room 1 or more times.
+    case 1) This room does not contain any part of the tour, just door labels
+    case 2) The tour already goes through this room 1 or more times.
 
 In case 1, we have to create a new loop on the floor.  Record this loop
 by drawing a line on the floor through the doors and rooms in the loop, back to
@@ -76,8 +76,8 @@ At that point, we are in a room with part of the tour present, so goto case 2.
 
 In case 2, there are 2 sub cases:
 
-subcase 1) There are multiple lines through the room with different labels
-subcase 2) Each line through the room has the same label
+    subcase 1) There are multiple lines through the room with different labels
+    subcase 2) Each line through the room has the same label
 
 In subcase 1, it's time to merge all the different tour pieces.  It is
 generally more efficient to merge the new loops into the old tour, since they
@@ -88,13 +88,13 @@ then splicing the new loop into the old tour:
 
 Before splicing:
 
-Oldest path: door 89 ---> 123 ---> door 90
-New loop: door 410 ---> 1093 ---> door 411
+    Oldest path: door 89 ---> 123 ---> door 90
+    New loop: door 410 ---> 1093 ---> door 411
 
 After splicing:
 
-door 89 ---> 123 ---> door 411
-door 410 --> 123 ---> door 90
+    door 89 ---> 123 ---> door 411
+    door 410 --> 123 ---> door 90
 
 At this point, we are in a Case 2, but the room has only one tour, though it
 occurs multiple times.  This is just subcase 2, so goto subcase 2.
@@ -111,14 +111,14 @@ the two dangling lines in the room where we started together.  Suppose the usele
 
 Before deletion:
 
-door 1233 ---> 123 ---> door 1234
-door 3288 ---> 123 ---> door 3289
+    door 1233 ---> 123 ---> door 1234
+    door 3288 ---> 123 ---> door 3289
 
 The usless loop start through door 1234, and ends through door 3288.
 
 After deletion:
 
-door 1233 ---> 123 ---> door 3289
+    door 1233 ---> 123 ---> door 3289
 
 Now we are back in subcase 2, where we're in a room we've seen before.  As
 before, follow the tour, looking for an unexplored door.  Each time we do this,
