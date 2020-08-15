@@ -101,7 +101,9 @@ occurs multiple times.  This is just subcase 2, so goto subcase 2.
 
 In subcase 2, we are in a room we have seen before, with lines from the tour,
 all with the same label.  If there is an unexplored door, increment the counter
-and label it, and then traverse it.  Otherwise, pick a line from the tour, and follow it, incrementing the door counter and relabling doors as we go, until one of two sub-sub-cases happens:
+and label it, and then traverse it.  Otherwise, pick a line from the tour, and
+follow it, incrementing the door counter and relabeling doors as we go, until
+one of two sub-sub-cases happens:
 
     sub-sub-case 1) we find an unexplored door.  This is just subcase 2, where we have an unexplored door.
     sub-sub-case 2) we come back to the room where we started following the tour.
@@ -114,7 +116,7 @@ Before deletion:
     door 1233 ---> 123 ---> door 1234
     door 3288 ---> 123 ---> door 3289
 
-The usless loop start through door 1234, and ends through door 3288.
+The useless loop start through door 1234, and ends through door 3288.
 
 After deletion:
 
@@ -124,7 +126,7 @@ Now we are back in subcase 2, where we're in a room we've seen before.  As
 before, follow the tour, looking for an unexplored door.  Each time we do this,
 we either find an unexplored door, or delete a useless loop.  At some point,
 since there are a finite number of useless loops, we will find an unexplored
-door.  This guarentees the algorithm will complete by successfully finding the
+door.  This guarantees the algorithm will complete by successfully finding the
 exit door.
 
 ### Efficiency
@@ -166,11 +168,15 @@ other of two doors leading into any of the central rooms that have no door to
 the outside.  Each non-central room has an escape door, which kids would have to
 use if the door forward to the next central room is locked.
 
-The Finish room could have candy or some other treasure.  This example requies 4
-correct decisions to get to Finish.  Kids choosing randomly at each door will
-have a 1 in 16 chace of reaching Finish per attempt.  Even kids with perfect
-memories will on average have to start over twice and only reach Finish on hteir
+The Finish room could have candy or some other treasure.  This example requires
+4 correct decisions to get to Finish.  Kids choosing randomly at each door will
+have a 1 in 16 chance of reaching Finish per attempt.  Even kids with perfect
+memories will on average have to start over twice and only reach Finish on their
 3rd attempt.  Meaner mazes just require additional rooms.  Adding 4 more central
 rooms reduces random attempt probabilities to 1 in 256, and kids who remember
 mistakes wind up making 4 mistakes on average and traverse 40 doors to reach
 Finish.
+
+I tested a virtual maze like this in Minecraft.  What I discovered is that
+10-year-old boys don't have the patience to traverse even a maze as simple as
+the one above!
