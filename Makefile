@@ -5,3 +5,6 @@ madatabase.c: madatabase.h
 
 madatabase.h: Maze.dd
 	datadraw Maze.dd
+
+clean:
+	rm -f maze
