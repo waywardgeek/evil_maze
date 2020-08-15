@@ -153,7 +153,7 @@ One cool thing about the Evil Maze drawn above is that we can realize it
 physically as a maze that could be put up in the yard at Halloween for kids to
 solve.
 
-![Image of evil maze](halloween_maze.png?raw=true "Evil Halloween Maze")
+![Image of evil Halloween maze](img/halloween_maze.jpg?raw=true "Evil Halloween Maze")
 
 This can be built out of plywood and parts from Home Depot.  The short lines are
 one-way doors that open into the room where they are placed.  I imagine them
