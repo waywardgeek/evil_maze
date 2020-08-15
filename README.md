@@ -158,9 +158,19 @@ solve.
 This can be built out of plywood and parts from Home Depot.  The short lines are
 one-way doors that open into the room where they are placed.  I imagine them
 hanging, with the hinges at the top of the door rather than the side, so gravity
-closes them.  When there are two of these one-way doors in one room, one has to
-be closed before the other can be opened, because they physically block each
-other.  Cheap pad locks are used to lock one or the other of two doors leading
-into any of the central rooms that have no door to the outside.  Each
-non-central room has an escape door, which kids would have to use if the door
-forward to the next central room is locked.
+closes them.  A gate latch locks the door, and can only be opened from one side,
+the side where we can push the door open.  When there are two of these one-way
+doors in one room, one has to be closed before the other can be opened, because
+they physically block each other.  Cheap pad locks are used to lock one or the
+other of two doors leading into any of the central rooms that have no door to
+the outside.  Each non-central room has an escape door, which kids would have to
+use if the door forward to the next central room is locked.
+
+The Finish room could have candy or some other treasure.  This example requies 4
+correct decisions to get to Finish.  Kids choosing randomly at each door will
+have a 1 in 16 chace of reaching Finish per attempt.  Even kids with perfect
+memories will on average have to start over twice and only reach Finish on hteir
+3rd attempt.  Meaner mazes just require additional rooms.  Adding 4 more central
+rooms reduces random attempt probabilities to 1 in 256, and kids who remember
+mistakes wind up making 4 mistakes on average and traverse 40 doors to reach
+Finish.
