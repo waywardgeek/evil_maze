@@ -103,8 +103,8 @@ In subcase 2, we are in a room we have seen before, with lines from the tour,
 all with the same label.  If there is an unexplored door, increment the counter
 and label it, and then traverse it.  Otherwise, pick a line from the tour, and follow it, incrementing the door counter and relabling doors as we go, until one of two sub-sub-cases happens:
 
-sub-sub-case 1) we find an unexplored door.  This is just subcase 2, where we have an unexplored door.
-sub-sub-case 2) we come back to the room where we started following the tour.
+    sub-sub-case 1) we find an unexplored door.  This is just subcase 2, where we have an unexplored door.
+    sub-sub-case 2) we come back to the room where we started following the tour.
 
 In sub-sub-case 2, we've detected a useless loop.  Simply erase it, and splice
 the two dangling lines in the room where we started together.  Suppose the useless loop started through door 1234:
