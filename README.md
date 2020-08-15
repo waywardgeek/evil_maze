@@ -146,3 +146,21 @@ path.  Another improvement would be doing a better job of detecting when we have
 to reset our startLabel, which is used to detect the start of a loop, since we
 don't have to do it every time we delete a loop or splice paths together.  Some
 of this is already done in maze.c, for about 2X speed improvement.
+
+### Evil Halloween Maze
+
+One cool thing about the Evil Maze drawn above is that we can realize it
+physically as a maze that could be put up in the yard at Halloween for kids to
+solve.
+
+![Image of evil maze](halloween_maze.png?raw=true "Evil Halloween Maze")
+
+This can be built out of plywood and parts from Home Depot.  The short lines are
+one-way doors that open into the room where they are placed.  I imagine them
+hanging, with the hinges at the top of the door rather than the side, so gravity
+closes them.  When there are two of these one-way doors in one room, one has to
+be closed before the other can be opened, because they physically block each
+other.  Cheap pad locks are used to lock one or the other of two doors leading
+into any of the central rooms that have no door to the outside.  Each
+non-central room has an escape door, which kids would have to use if the door
+forward to the next central room is locked.
