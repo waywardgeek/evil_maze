@@ -242,6 +242,7 @@ utInlineC maMaze maMazeAlloc(void) {
 ----------------------------------------------------------------------------------------*/
 struct maRoomFields {
     utSym *Sym;
+    uint64 *Label;
     maMaze *Maze;
     maRoom *NextMazeRoom;
     maRoom *PrevMazeRoom;
@@ -257,6 +258,8 @@ void maRoomAllocMore(void);
 void maRoomCopyProps(maRoom maOldRoom, maRoom maNewRoom);
 utInlineC utSym maRoomGetSym(maRoom Room) {return maRooms.Sym[maRoom2ValidIndex(Room)];}
 utInlineC void maRoomSetSym(maRoom Room, utSym value) {maRooms.Sym[maRoom2ValidIndex(Room)] = value;}
+utInlineC uint64 maRoomGetLabel(maRoom Room) {return maRooms.Label[maRoom2ValidIndex(Room)];}
+utInlineC void maRoomSetLabel(maRoom Room, uint64 value) {maRooms.Label[maRoom2ValidIndex(Room)] = value;}
 utInlineC maMaze maRoomGetMaze(maRoom Room) {return maRooms.Maze[maRoom2ValidIndex(Room)];}
 utInlineC void maRoomSetMaze(maRoom Room, maMaze value) {maRooms.Maze[maRoom2ValidIndex(Room)] = value;}
 utInlineC maRoom maRoomGetNextMazeRoom(maRoom Room) {return maRooms.NextMazeRoom[maRoom2ValidIndex(Room)];}
@@ -300,6 +303,7 @@ utInlineC maRoom maRoomAllocRaw(void) {
 utInlineC maRoom maRoomAlloc(void) {
     maRoom Room = maRoomAllocRaw();
     maRoomSetSym(Room, utSymNull);
+    maRoomSetLabel(Room, 0);
     maRoomSetMaze(Room, maMazeNull);
     maRoomSetNextMazeRoom(Room, maRoomNull);
     maRoomSetPrevMazeRoom(Room, maRoomNull);
@@ -521,6 +525,7 @@ void maDoorInsertAfterPath(maDoor Door, maPath prevPath, maPath _Path);
 void maDoorAppendPath(maDoor Door, maPath _Path);
 void maDatabaseStart(void);
 void maDatabaseStop(void);
+utInlineC void maDatabaseSetSaved(bool value) {utModuleSetSaved(utModules + maModuleID, value);}
 #if defined __cplusplus
 }
 #endif

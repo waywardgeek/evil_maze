@@ -3,6 +3,7 @@ module Maze ma
 class Maze
 
 class Room
+    uint64 label
 
 class Door
     bool explored

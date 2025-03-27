@@ -132,7 +132,7 @@ static void deletePathLoop(maPath startPath, maPath stopPath)
 
     for(path = startPath; path != stopPath; path = nextPath) {
         nextPath = maPathGetNextPath(path);
-        printf("Deleting path %llu element %u in R%u\n", maPathGetLabel(path),
+        printf("Deleting path %lu element %u in R%u\n", maPathGetLabel(path),
             maPath2Index(path), maRoom2Index(maDoorGetFromRoom(maPathGetDoor(path))));
         maPathDestroy(path);
     }
@@ -200,7 +200,7 @@ static void buildLoop(maRoom startRoom, uint64 label)
     do {
         door = findLargestLabelDoor(room);
         path = maPathCreate(door, label, prevPath, maPathNull);
-        printf("Building path %llu element %u through door %u in room %u\n", label,
+        printf("Building path %lu element %u through door %u in room %u\n", label,
             maPath2Index(path), maDoor2Index(door), maRoom2Index(room));
         if(firstPath == maPathNull) {
             firstPath = path;
@@ -240,7 +240,7 @@ static maPath findPathInRoom(maRoom room)
 static void relabelPath(maPath path, uint64 label)
 {
     while(maPathGetLabel(path) != label) {
-        printf("Relabling path %llu into %llu in room %u\n", maPathGetLabel(path),
+        printf("Relabling path %lu into %lu in room %u\n", maPathGetLabel(path),
             label, maRoom2Index(maDoorGetFromRoom(maPathGetDoor(path))));
         maPathSetLabel(path, label);
         path = maPathGetNextPath(path);
@@ -322,9 +322,164 @@ static void solveMazeRandomly(maMaze maze)
         door = pickRandomDoor(room);
         room = maDoorGetToRoom(door);
         count++;
-        printf("%llu went through door %u to room %u\n", count, maDoor2Index(door),
+        printf("%lu went through door %u to room %u\n", count, maDoor2Index(door),
             maRoom2Index(room));
     }
+}
+
+typedef enum {
+    EXPLORING,
+    ASCEND,
+    DESCEND,
+} State;
+
+// Dump the door.
+static void dumpDoor(maDoor door, State state, uint64 counter) {
+    maRoom currentRoom = maDoorGetFromRoom(door);
+    maRoom nextRoom = maDoorGetToRoom(door);
+    char *stateName;
+
+    switch (state) {
+        case EXPLORING:
+            stateName = "Exploring";
+            break;
+        case ASCEND:
+            stateName = "Ascending";
+            break;
+        case DESCEND:
+            stateName = "Descending";
+            break;
+    }
+    printf("%lu: %s door %u, label %lu, from room %u to %u\n", counter,
+            stateName, maDoor2Index(door), maDoorGetLabel(door),
+            maRoom2Index(currentRoom), maRoom2Index(nextRoom));
+}
+
+// This is the "Random mouse" solution, which I normally call the "run screaming"
+// algorithm, since my daughter when she was young would have done exactly that to get out
+// of the maze.
+static void solveMazeWithNewAlgorithm(maMaze maze)
+{
+    maRoom cur = maMazeGetStartRoom(maze);
+    maRoom end = maMazeGetFinishRoom(maze);
+    // Room counter.
+    uint64 lastLabel = 1;
+    // Whether we're actively heading back up to relabel.
+    bool updating = false;
+    // which door needs to be relabeled.
+    uint64 relabelTarget = 0;
+    // what the door will be relabled to.
+    uint64 relabel = 0;
+    // explore/ascend/descend.
+    State state = EXPLORING;
+    maDoor door;
+    uint64 counter = 0;
+
+    while (cur != end) {
+        counter++;
+        switch (state) {
+            case ASCEND: {
+                uint64 highest = 0;
+                bool foundEmpty = false;
+                maForeachRoomOutDoor(cur, door) {
+                    // Relabel the dead room with the lowest point it reaches.
+                    if (updating && maDoorGetLabel(door) == relabelTarget) {
+                        updating = false;
+                        maDoorSetLabel(door, relabel);
+                    }
+                    highest = utMax(highest, (maDoorGetLabel(door)));
+                    if (maDoorGetLabel(door) == 0) {
+                        foundEmpty = true;
+                    }
+                } maEndRoomOutDoor;
+                // Found a higher node, head up.
+                if (highest > maRoomGetLabel(cur)) {
+                    maForeachRoomOutDoor(cur, door) {
+                        if (maDoorGetLabel(door) == highest) {
+                            dumpDoor(door, state, counter);
+                            cur = maDoorGetToRoom(door);
+                            break;
+                        }
+                    } maEndRoomOutDoor;
+                // Nothing higher up, so we're at the end of the active branch. Start
+                // exploring new nodes
+                } else if (foundEmpty) {
+                    maForeachRoomOutDoor(cur, door) {
+                        if (maDoorGetLabel(door) == 0) {
+                            lastLabel++;
+                            maDoorSetLabel(door, lastLabel);
+                            dumpDoor(door, state, counter);
+                            cur = maDoorGetToRoom(door);
+                            state = EXPLORING;
+                            break;
+                        }
+                    } maEndRoomOutDoor;
+                // All destination nodes are lower or equal to this node.
+                // At least one path should return to a lower node to eventually go to
+                // zero, so we should have a way back down a bit.
+                } else {
+                    // Will relabel the door going to this room with the lowest value
+                    // reachable from descending from this room.
+                    relabelTarget = maRoomGetLabel(cur);
+                    updating = true;
+                    state = DESCEND;
+                }
+                break;
+            }
+            case EXPLORING:
+                if (maRoomGetLabel(cur) != 0) {
+                    // Hit another explored node, need to relabel the last door with the
+                    // descent value.
+                    relabelTarget = lastLabel;
+                    // optional decrease of counter to make room numbering nicer.
+                    lastLabel -= 1;
+                    updating = true;
+                    state = DESCEND;
+                } else {
+                    // First time seeing this node, all doors should be unmarked.
+                    maRoomSetLabel(cur, lastLabel);
+                    maForeachRoomOutDoor(cur, door) {
+                        if (maDoorGetLabel(door) == 0) {
+                            lastLabel++;
+                            maDoorSetLabel(door, lastLabel);
+                            dumpDoor(door, state, counter);
+                            cur = maDoorGetToRoom(door);
+                            break;
+                        }
+                    } maEndRoomOutDoor;
+              }
+              break;
+            case DESCEND: {
+                // Get as low on the tree as possible, to guarantee that we're on the
+                // live path and have new routes to explore.
+                int lowest = maRoomGetLabel(cur);
+                maDoor door;
+                maForeachRoomOutDoor(cur, door) {
+                    // Should always have a way down, until we're as low as we can go
+                    // from where we started.
+                    if (maDoorGetLabel(door) > 0 && maDoorGetLabel(door) < lowest) {
+                        lowest = maDoorGetLabel(door);
+                    }
+                } maEndRoomOutDoor;
+                if (lowest < maRoomGetLabel(cur)) {
+                    maForeachRoomOutDoor(cur, door) {
+                        if (maDoorGetLabel(door) == lowest) {
+// temp
+dumpDoor(door, state, counter);
+                            cur = maDoorGetToRoom(door);
+                            break;
+                        }
+                    } maEndRoomOutDoor;
+                } else {
+                    // No way further down.
+                    state = ASCEND;
+                    relabel = maRoomGetLabel(cur);
+                }
+                break;
+            }
+        }
+    }
+    utAssert(cur == end);
 }
 
 // Solve the maze problem.
@@ -347,7 +502,7 @@ void solveMaze(maMaze maze)
             count++;
             maDoorSetLabel(door, count);
             nextRoom = maDoorGetToRoom(door);
-            printf("%llu Exploring door %u from room %u to %u\n", count,
+            printf("%lu Exploring door %u from room %u to %u\n", count,
                 maDoor2Index(door), maRoom2Index(currentRoom), maRoom2Index(nextRoom));
             maDoorSetExplored(door, true);
             currentRoom = nextRoom;
@@ -386,7 +541,7 @@ void solveMaze(maMaze maze)
             count++;
             maDoorSetLabel(door, count);
             nextRoom = maDoorGetToRoom(door);
-            printf("%llu Following path %llu through door %u from room %u to %u\n", count,
+            printf("%lu Following path %lu through door %u from room %u to %u\n", count,
                 maPathGetLabel(path), maDoor2Index(door), maRoom2Index(currentRoom),
                 maRoom2Index(nextRoom));
             currentRoom = nextRoom;
@@ -547,6 +702,7 @@ int main(int argc, char **argv) {
     int xArg = 1;
     maMaze maze;
     bool uniformMaze = false;
+    bool useNewAlgorithm = false;
     bool useRandomMouse = false;
     char *mazeFileName = NULL;
 
@@ -559,6 +715,8 @@ int main(int argc, char **argv) {
             seed = atoi(argv[++xArg]);
         } else if(!strcmp(argv[xArg], "-r")) {
             useRandomMouse = true;
+        } else if(!strcmp(argv[xArg], "-n")) {
+            useNewAlgorithm = true;
         }
         xArg++;
     }
@@ -567,7 +725,8 @@ int main(int argc, char **argv) {
            "       maze [-u] [-s seed] -f mazeFile\n"
            "    With the -f flag, read the maze from the mazeFile.\n"
            "    With the -u flag, build an unfair maze where all wrong doors go to start.\n"
-           "    With the -r flag, use the random mouse algorithm.\n");
+           "    With the -r flag, use the random mouse algorithm.\n"
+           "    With the -n flag, use the 'new' algorithm.\n");
         return 1;
     }
     if(mazeFileName == NULL) {
@@ -585,6 +744,8 @@ int main(int argc, char **argv) {
     printMaze(maze);
     if(useRandomMouse) {
         solveMazeRandomly(maze);
+    } else if(useNewAlgorithm) {
+        solveMazeWithNewAlgorithm(maze);
     } else {
         solveMaze(maze);
     }
