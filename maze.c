@@ -414,6 +414,8 @@ static void solveMazeWithNewAlgorithm(maMaze maze)
                     // Relabel the dead room with the lowest point it reaches.
                     if (updating && maDoorGetLabel(door) == relabelTarget) {
                         updating = false;
+                        printf("Relabling door %u from %lu to %lu\n",
+                                maDoor2Index(door), relabelTarget, relabel);
                         maDoorSetLabel(door, relabel);
                     }
                     highest = utMax(highest, (maDoorGetLabel(door)));
@@ -430,11 +432,11 @@ static void solveMazeWithNewAlgorithm(maMaze maze)
                     // Nothing higher up, so we're at the end of the active
                     // branch. Start exploring new nodes
                     door = findUnlabeledDoor(cur);
+                    state = EXPLORING;
                     lastLabel++;
                     maDoorSetLabel(door, lastLabel);
                     dumpDoor(door, state, counter);
                     cur = maDoorGetToRoom(door);
-                    state = EXPLORING;
                 } else {
                     // All destination nodes are lower or equal to this node.
                     // At least one path should return to a lower node to
