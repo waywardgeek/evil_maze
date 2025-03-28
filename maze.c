@@ -75,11 +75,7 @@ maMaze buildMaze(int numRooms, int averageDoors, int seed, bool uniform)
         while(numDoors != 0) {
             from = rooms[rand() % (numRooms - 1)];
             to = rooms[rand() % (numRooms - 1)];
-            if(maRoom2Index(from) < maRoom2Index(to)) {
-                maDoorCreate(to, from, (rand() % 2) == 1);
-            } else {
-                maDoorCreate(from, to, (rand() % 2) == 1);
-            }
+            maDoorCreate(to, from, (rand() % 2) == 1);
             numDoors--;
         }
     } else {
@@ -470,25 +466,16 @@ static void solveMazeWithNewAlgorithm(maMaze maze)
               }
               break;
             case DESCEND: {
-                // Get as low on the tree as possible, to guarantee that we're on the
-                // live path and have new routes to explore.
-                int lowest = maRoomGetLabel(cur);
-                maDoor door;
-                maForeachRoomOutDoor(cur, door) {
-                    // Should always have a way down, until we're as low as we can go
-                    // from where we started.
-                    if (maDoorGetLabel(door) > 0 && maDoorGetLabel(door) < lowest) {
-                        lowest = maDoorGetLabel(door);
-                    }
-                } maEndRoomOutDoor;
-                if (lowest < maRoomGetLabel(cur)) {
-                    door = findSmallestLabelDoor(cur);
-                    dumpDoor(door, state, counter);
-                    cur = maDoorGetToRoom(door);
-                } else {
-                    // No way further down.
+                maDoor lowest = findSmallestLabelDoor(cur);
+                maDoor highest = findLargestLabelDoor(cur);
+                if (maDoorGetLabel(highest) > maRoomGetLabel(cur)) {
+                    // We're on the DFS path.
                     state = ASCEND;
                     relabel = maRoomGetLabel(cur);
+                } else {
+                    utAssert(maDoorGetLabel(lowest) < maRoomGetLabel(cur));
+                    dumpDoor(lowest, state, counter);
+                    cur = maDoorGetToRoom(lowest);
                 }
                 break;
             }
