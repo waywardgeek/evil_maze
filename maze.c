@@ -107,6 +107,19 @@ static maDoor findUnexploredDoor(maRoom room)
     } maEndRoomOutDoor;
     return maDoorNull;
 }
+// Find an unlabeled door if one exists.
+static maDoor findUnlabeledDoor(maRoom room)
+{
+    maDoor door;
+
+    maForeachRoomOutDoor(room, door) {
+        if(maDoorGetLabel(door) == 0) {
+            return door;
+        }
+    } maEndRoomOutDoor;
+    return maDoorNull;
+}
+
 
 // Find the door with the largest label.
 static maDoor findLargestLabelDoor(maRoom room)
@@ -122,6 +135,22 @@ static maDoor findLargestLabelDoor(maRoom room)
         }
     } maEndRoomOutDoor;
     return largestDoor;
+}
+
+// Find the door with the smallest label.
+static maDoor findSmallestLabelDoor(maRoom room)
+{
+    maDoor door, smallestDoor = maDoorNull;
+    uint64 label, smallestLabel = UINT64_MAX;
+
+    maForeachRoomOutDoor(room, door) {
+        label = maDoorGetLabel(door);
+        if(label != 0 && label < smallestLabel) {
+            smallestLabel = label;
+            smallestDoor = door;
+        }
+    } maEndRoomOutDoor;
+    return smallestDoor;
 }
 
 // Delete the loop of labels so we wont follow them any more.
@@ -392,34 +421,27 @@ static void solveMazeWithNewAlgorithm(maMaze maze)
                         foundEmpty = true;
                     }
                 } maEndRoomOutDoor;
-                // Found a higher node, head up.
                 if (highest > maRoomGetLabel(cur)) {
-                    maForeachRoomOutDoor(cur, door) {
-                        if (maDoorGetLabel(door) == highest) {
-                            dumpDoor(door, state, counter);
-                            cur = maDoorGetToRoom(door);
-                            break;
-                        }
-                    } maEndRoomOutDoor;
-                // Nothing higher up, so we're at the end of the active branch. Start
-                // exploring new nodes
+                    // Found a higher node, head up.
+                    door = findLargestLabelDoor(cur);
+                    dumpDoor(door, state, counter);
+                    cur = maDoorGetToRoom(door);
                 } else if (foundEmpty) {
-                    maForeachRoomOutDoor(cur, door) {
-                        if (maDoorGetLabel(door) == 0) {
-                            lastLabel++;
-                            maDoorSetLabel(door, lastLabel);
-                            dumpDoor(door, state, counter);
-                            cur = maDoorGetToRoom(door);
-                            state = EXPLORING;
-                            break;
-                        }
-                    } maEndRoomOutDoor;
-                // All destination nodes are lower or equal to this node.
-                // At least one path should return to a lower node to eventually go to
-                // zero, so we should have a way back down a bit.
+                    // Nothing higher up, so we're at the end of the active
+                    // branch. Start exploring new nodes
+                    door = findUnlabeledDoor(cur);
+                    lastLabel++;
+                    maDoorSetLabel(door, lastLabel);
+                    dumpDoor(door, state, counter);
+                    cur = maDoorGetToRoom(door);
+                    state = EXPLORING;
                 } else {
-                    // Will relabel the door going to this room with the lowest value
-                    // reachable from descending from this room.
+                    // All destination nodes are lower or equal to this node.
+                    // At least one path should return to a lower node to
+                    // eventually go to zero, so we should have a way back down
+                    // a bit.  Will relabel the door going to this room with
+                    // the lowest value reachable from descending from this
+                    // room.
                     relabelTarget = maRoomGetLabel(cur);
                     updating = true;
                     state = DESCEND;
@@ -438,15 +460,11 @@ static void solveMazeWithNewAlgorithm(maMaze maze)
                 } else {
                     // First time seeing this node, all doors should be unmarked.
                     maRoomSetLabel(cur, lastLabel);
-                    maForeachRoomOutDoor(cur, door) {
-                        if (maDoorGetLabel(door) == 0) {
-                            lastLabel++;
-                            maDoorSetLabel(door, lastLabel);
-                            dumpDoor(door, state, counter);
-                            cur = maDoorGetToRoom(door);
-                            break;
-                        }
-                    } maEndRoomOutDoor;
+                    door = findUnlabeledDoor(cur);
+                    lastLabel++;
+                    maDoorSetLabel(door, lastLabel);
+                    dumpDoor(door, state, counter);
+                    cur = maDoorGetToRoom(door);
               }
               break;
             case DESCEND: {
@@ -462,14 +480,9 @@ static void solveMazeWithNewAlgorithm(maMaze maze)
                     }
                 } maEndRoomOutDoor;
                 if (lowest < maRoomGetLabel(cur)) {
-                    maForeachRoomOutDoor(cur, door) {
-                        if (maDoorGetLabel(door) == lowest) {
-// temp
-dumpDoor(door, state, counter);
-                            cur = maDoorGetToRoom(door);
-                            break;
-                        }
-                    } maEndRoomOutDoor;
+                    door = findSmallestLabelDoor(cur);
+                    dumpDoor(door, state, counter);
+                    cur = maDoorGetToRoom(door);
                 } else {
                     // No way further down.
                     state = ASCEND;
